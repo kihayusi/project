@@ -1,0 +1,120 @@
+import { useState, useEffect } from "react";
+import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Shield, Menu, Globe, LogOut, User } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
+
+export const Header = () => {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    // Listen for auth changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    toast({
+      title: "Signed out",
+      description: "You have been successfully signed out.",
+    });
+    navigate("/");
+  };
+
+  return (
+    <header className="sticky top-0 z-50 w-full border-b border-civic-gray bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+      <div className="container mx-auto flex h-16 items-center justify-between px-4">
+        <div className="flex items-center space-x-2">
+          <Shield className="h-8 w-8 text-civic-blue" />
+          <div>
+            <h1 className="text-xl font-bold text-civic-gray-dark">CityLife</h1>
+            <p className="text-xs text-muted-foreground">San Carlos City</p>
+          </div>
+        </div>
+        
+        <nav className="hidden md:flex items-center space-x-6">
+          <NavLink to="/" end className={({ isActive }) => `relative text-sm font-medium transition-colors pb-0.5 ${ isActive ? "text-civic-blue after:absolute after:bottom-[-2px] after:left-0 after:w-full after:h-[2px] after:bg-civic-blue after:rounded-full" : "text-civic-gray-dark hover:text-civic-blue" }`}>
+            Home
+          </NavLink>
+          <NavLink to="/services" className={({ isActive }) => `relative text-sm font-medium transition-colors pb-0.5 ${ isActive ? "text-civic-blue after:absolute after:bottom-[-2px] after:left-0 after:w-full after:h-[2px] after:bg-civic-blue after:rounded-full" : "text-civic-gray-dark hover:text-civic-blue" }`}>
+            Services
+          </NavLink>
+          <NavLink to="/announcements" className={({ isActive }) => `relative text-sm font-medium transition-colors pb-0.5 ${ isActive ? "text-civic-blue after:absolute after:bottom-[-2px] after:left-0 after:w-full after:h-[2px] after:bg-civic-blue after:rounded-full" : "text-civic-gray-dark hover:text-civic-blue" }`}>
+            Announcements
+          </NavLink>
+          <NavLink to="/emergency" className={({ isActive }) => `relative text-sm font-medium transition-colors pb-0.5 ${ isActive ? "text-civic-blue after:absolute after:bottom-[-2px] after:left-0 after:w-full after:h-[2px] after:bg-civic-blue after:rounded-full" : "text-civic-gray-dark hover:text-civic-blue" }`}>
+            Emergency
+          </NavLink>
+        </nav>
+
+        <div className="flex items-center space-x-2">
+          <Button variant="ghost" size="icon" className="h-9 w-9">
+            <Globe className="h-4 w-4" />
+          </Button>
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-9 gap-2 px-2">
+                  {user.user_metadata?.avatar_url ? (
+                    <img
+                      src={user.user_metadata.avatar_url}
+                      alt="Avatar"
+                      className="h-7 w-7 rounded-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <User className="h-4 w-4" />
+                  )}
+                  <span className="hidden md:inline text-sm font-medium max-w-[120px] truncate">
+                    {user.user_metadata?.full_name || user.user_metadata?.name || user.email}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem className="text-xs text-muted-foreground cursor-default">
+                  {user.email}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleSignOut}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <Button
+              variant="civic"
+              size="sm"
+              onClick={() => navigate("/auth")}
+              className="hidden md:flex"
+            >
+              Sign In
+            </Button>
+          )}
+          <Button variant="ghost" size="icon" className="h-9 w-9 md:hidden">
+            <Menu className="h-4 w-4" />
+          </Button>
+        </div>
+      </div>
+    </header>
+  );
+};

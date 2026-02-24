@@ -14,13 +14,14 @@ import MyRequests from "./pages/MyRequests";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
+const basename = import.meta.env.PROD ? "/project" : "/";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter basename="/project">
+      <BrowserRouter basename={basename}>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth/*" element={<Auth />} />

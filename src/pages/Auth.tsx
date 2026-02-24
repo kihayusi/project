@@ -64,7 +64,7 @@ const Auth = () => {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/project/`,
+          emailRedirectTo: `${window.location.origin}${import.meta.env.BASE_URL}`,
         },
       });
 
@@ -123,7 +123,7 @@ const Auth = () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: `${window.location.origin}/project/` },
+        options: { redirectTo: `${window.location.origin}${import.meta.env.BASE_URL}` },
       });
       if (error) throw error;
     } catch (error: any) {

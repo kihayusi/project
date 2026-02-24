@@ -3,6 +3,7 @@ import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Shield, Menu, Globe, LogOut, User, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import cityLogo from "@/assets/san-carlos-city-seal.png";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,8 +54,8 @@ export const Header = () => {
     <header className="sticky top-0 z-50 w-full border-b border-civic-gray bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 animate-fade-in-down">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         {/* Logo */}
-        <div className="flex items-center space-x-2 hover:scale-105 transition-transform duration-300 cursor-pointer">
-          <Shield className="h-8 w-8 text-civic-blue" />
+        <div className="flex items-center space-x-2 hover:scale-105 transition-transform duration-300 cursor-pointer" onClick={() => navigate("/")}>
+          <img src={cityLogo} alt="San Carlos City Seal" className="h-10 w-10 object-contain" />
           <div>
             <h1 className="text-xl font-bold text-civic-gray-dark">CityLife</h1>
             <p className="text-xs text-muted-foreground">San Carlos City</p>
@@ -148,7 +149,15 @@ export const Header = () => {
                 `block px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? "bg-civic-blue/10 text-civic-blue" : "text-civic-gray-dark hover:bg-gray-100"}`
               }>My Requests</NavLink>
             )}
-            {!user && (
+            {user ? (
+              <button
+                onClick={handleSignOut}
+                className="flex items-center w-full px-3 py-2 mt-1 rounded-md text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign Out
+              </button>
+            ) : (
               <Button variant="civic" size="sm" onClick={() => navigate("/auth")} className="mt-2 w-full">
                 Sign In
               </Button>

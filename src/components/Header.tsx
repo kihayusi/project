@@ -149,15 +149,7 @@ export const Header = () => {
                 `block px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? "bg-civic-blue/10 text-civic-blue" : "text-civic-gray-dark hover:bg-gray-100"}`
               }>My Requests</NavLink>
             )}
-            {user ? (
-              <button
-                onClick={handleSignOut}
-                className="flex items-center w-full px-3 py-2 mt-1 rounded-md text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                Sign Out
-              </button>
-            ) : (
+            {!user && (
               <Button variant="civic" size="sm" onClick={() => navigate("/auth")} className="mt-2 w-full">
                 Sign In
               </Button>

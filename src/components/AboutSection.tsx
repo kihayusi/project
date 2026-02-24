@@ -1,4 +1,5 @@
 import { FileText, MessageSquare, Megaphone, ShieldCheck, Clock, Users } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 const features = [
   {
@@ -41,16 +42,47 @@ const steps = [
 ];
 
 export const AboutSection = () => {
+  const [isVisible, setIsVisible] = useState(false);
+  const [featuresVisible, setFeaturesVisible] = useState(false);
+  const [stepsVisible, setStepsVisible] = useState(false);
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const featuresRef = useRef<HTMLDivElement>(null);
+  const stepsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach(entry => {
+          if (entry.target === sectionRef.current && entry.isIntersecting) {
+            setIsVisible(true);
+          }
+          if (entry.target === featuresRef.current && entry.isIntersecting) {
+            setFeaturesVisible(true);
+          }
+          if (entry.target === stepsRef.current && entry.isIntersecting) {
+            setStepsVisible(true);
+          }
+        });
+      },
+      { threshold: 0.1 }
+    );
+
+    if (sectionRef.current) observer.observe(sectionRef.current);
+    if (featuresRef.current) observer.observe(featuresRef.current);
+    if (stepsRef.current) observer.observe(stepsRef.current);
+
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <section className="bg-white py-20">
       <div className="container mx-auto px-4">
         {/* What is CityLife */}
-        <div className="text-center mb-16">
-
-          <h2 className="text-4xl font-bold text-civic-gray-dark mb-4">
+        <div ref={sectionRef} className="text-center mb-16">
+          <h2 className={`text-4xl font-bold text-civic-gray-dark mb-4 transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
             What is <span className="text-civic-blue">CityLife</span>?
           </h2>
-          <p className="text-lg text-muted-foreground max-w-3xl mx-auto">
+          <p className={`text-lg text-muted-foreground max-w-3xl mx-auto transition-all duration-700 delay-200 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
             CityLife is the official digital services portal of <strong>San Carlos City, Pangasinan</strong>. It
             connects citizens with local government services — enabling you to submit requests, report concerns,
             and receive city announcements entirely online, anytime and anywhere.
@@ -58,10 +90,14 @@ export const AboutSection = () => {
         </div>
 
         {/* Feature grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
-          {features.map((f) => (
-            <div key={f.title} className="flex gap-4 p-6 rounded-xl border bg-muted/30 hover:shadow-md transition-shadow">
-              <div className="flex-shrink-0 h-11 w-11 flex items-center justify-center rounded-lg bg-civic-blue/10">
+        <div ref={featuresRef} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">
+          {features.map((f, index) => (
+            <div 
+              key={f.title} 
+              className={`flex gap-4 p-6 rounded-xl border bg-muted/30 hover:shadow-lg hover:-translate-y-1 transition-all duration-500 ${featuresVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+              style={{ transitionDelay: featuresVisible ? `${index * 100}ms` : '0ms' }}
+            >
+              <div className="flex-shrink-0 h-11 w-11 flex items-center justify-center rounded-lg bg-civic-blue/10 group-hover:bg-civic-blue/20 transition-colors">
                 <f.icon className="h-5 w-5 text-civic-blue" />
               </div>
               <div>
@@ -73,7 +109,7 @@ export const AboutSection = () => {
         </div>
 
         {/* How It Works */}
-        <div className="text-center mb-12">
+        <div className={`text-center mb-12 transition-all duration-700 ${stepsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <span className="inline-block bg-civic-green/10 text-civic-green text-sm font-semibold px-4 py-1 rounded-full mb-4">
             How It Works
           </span>
@@ -83,12 +119,16 @@ export const AboutSection = () => {
           </p>
         </div>
 
-        <div className="relative grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div ref={stepsRef} className="relative grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Horizontal connector line behind the step circles */}
-          <div className="hidden lg:block absolute top-[52px] left-[calc(12.5%+24px)] right-[calc(12.5%+24px)] h-0.5 bg-gradient-to-r from-civic-blue/20 via-civic-blue/40 to-civic-blue/20 z-0" />
-          {steps.map((s) => (
-            <div key={s.step} className="relative z-10 text-center p-6 rounded-xl border bg-white hover:shadow-md transition-shadow">
-              <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-civic-blue text-white font-bold text-lg mb-4 ring-4 ring-white">
+          <div className={`hidden lg:block absolute top-[52px] left-[calc(12.5%+24px)] right-[calc(12.5%+24px)] h-0.5 bg-gradient-to-r from-civic-blue/20 via-civic-blue/40 to-civic-blue/20 z-0 transition-all duration-1000 ${stepsVisible ? 'opacity-100 scale-x-100' : 'opacity-0 scale-x-0'}`} />
+          {steps.map((s, index) => (
+            <div 
+              key={s.step} 
+              className={`relative z-10 text-center p-6 rounded-xl border bg-white hover:shadow-lg hover:-translate-y-2 transition-all duration-500 ${stepsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+              style={{ transitionDelay: stepsVisible ? `${index * 150 + 200}ms` : '0ms' }}
+            >
+              <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-civic-blue text-white font-bold text-lg mb-4 ring-4 ring-white transition-transform duration-300 hover:scale-110">
                 {s.step}
               </div>
               <h3 className="font-semibold text-civic-gray-dark mb-2">{s.title}</h3>

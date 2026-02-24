@@ -7,9 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Heart, Calendar, MapPin, Stethoscope, Syringe, Baby } from "lucide-react";
+import { Heart, Calendar, MapPin, Stethoscope, Syringe, Baby, Loader2 } from "lucide-react";
 import { openEmailRequest } from "@/lib/email";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export const HealthServicesService = () => {
   const [vaccinationName, setVaccinationName] = useState("");
@@ -18,6 +19,7 @@ export const HealthServicesService = () => {
   const [assistanceType, setAssistanceType] = useState("");
   const [medicalCondition, setMedicalCondition] = useState("");
   const [estimatedCost, setEstimatedCost] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
 
   const requireAuth = async () => {
@@ -31,7 +33,7 @@ export const HealthServicesService = () => {
 
   const handleVaccinationRegistration = async () => {
     if (!vaccinationName || !vaccineType) {
-      alert("Please fill in all required fields");
+      toast.error("Please fill in all required fields");
       return;
     }
 
@@ -39,6 +41,7 @@ export const HealthServicesService = () => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -66,12 +69,14 @@ export const HealthServicesService = () => {
         console.warn("Email notification failed, but registration was submitted:", emailError);
       }
 
-      alert("Your vaccination registration has been submitted!");
+      toast.success("Your vaccination registration has been submitted!");
       setVaccinationName("");
       setVaccineType("");
     } catch (error) {
       console.error("Error submitting vaccination registration:", error);
-      alert("Failed to submit registration. Please try again.");
+      toast.error("Failed to submit registration. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -109,16 +114,16 @@ export const HealthServicesService = () => {
         console.warn("Email notification failed, but registration was submitted:", emailError);
       }
 
-      alert("Your schedule registration has been submitted!");
+      toast.success("Your schedule registration has been submitted!");
     } catch (error) {
       console.error("Error submitting schedule registration:", error);
-      alert("Failed to submit registration. Please try again.");
+      toast.error("Failed to submit registration. Please try again.");
     }
   };
 
   const handleAssistanceApplication = async () => {
     if (!assistanceName || !assistanceType || !medicalCondition) {
-      alert("Please fill in all required fields");
+      toast.error("Please fill in all required fields");
       return;
     }
 
@@ -126,6 +131,7 @@ export const HealthServicesService = () => {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
@@ -155,14 +161,16 @@ export const HealthServicesService = () => {
         console.warn("Email notification failed, but application was submitted:", emailError);
       }
 
-      alert("Your assistance application has been submitted!");
+      toast.success("Your assistance application has been submitted!");
       setAssistanceName("");
       setAssistanceType("");
       setMedicalCondition("");
       setEstimatedCost("");
     } catch (error) {
       console.error("Error submitting assistance application:", error);
-      alert("Failed to submit application. Please try again.");
+      toast.error("Failed to submit application. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -194,9 +202,9 @@ export const HealthServicesService = () => {
   ];
 
   const vaccinationSchedule = [
-    { vaccine: "COVID-19 Booster", date: "March 20, 2024", time: "8:00 AM - 5:00 PM", venue: "Sports Complex" },
-    { vaccine: "Influenza Vaccine", date: "March 25, 2024", time: "9:00 AM - 4:00 PM", venue: "City Health Office" },
-    { vaccine: "Pneumonia Vaccine (Seniors)", date: "April 1, 2024", time: "8:00 AM - 12:00 PM", venue: "Senior Center" },
+    { vaccine: "COVID-19 Booster", date: "March 15, 2026", time: "8:00 AM - 5:00 PM", venue: "Sports Complex" },
+    { vaccine: "Influenza Vaccine", date: "March 22, 2026", time: "9:00 AM - 4:00 PM", venue: "City Health Office" },
+    { vaccine: "Pneumonia Vaccine (Seniors)", date: "April 5, 2026", time: "8:00 AM - 12:00 PM", venue: "Senior Center" },
     { vaccine: "Routine Immunization", date: "Every Monday", time: "8:00 AM - 5:00 PM", venue: "All Health Centers" }
   ];
 
@@ -291,7 +299,7 @@ export const HealthServicesService = () => {
                 </div>
                 <div>
                   <Label htmlFor="vaccine-type">Vaccine Type</Label>
-                  <Select onValueChange={setVaccineType}>
+                  <Select value={vaccineType} onValueChange={setVaccineType}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select vaccine" />
                     </SelectTrigger>
@@ -304,8 +312,8 @@ export const HealthServicesService = () => {
                   </Select>
                 </div>
               </div>
-              <Button className="w-full" variant="civic" onClick={handleVaccinationRegistration}>
-                Register for Vaccination
+              <Button className="w-full" variant="civic" onClick={handleVaccinationRegistration} disabled={isSubmitting}>
+                {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...</> : "Register for Vaccination"}
               </Button>
             </CardContent>
           </Card>
@@ -399,7 +407,7 @@ export const HealthServicesService = () => {
                 </div>
                 <div>
                   <Label htmlFor="assistance-type">Type of Assistance</Label>
-                  <Select onValueChange={setAssistanceType}>
+                  <Select value={assistanceType} onValueChange={setAssistanceType}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select assistance type" />
                     </SelectTrigger>
@@ -431,8 +439,8 @@ export const HealthServicesService = () => {
                   onChange={(event) => setEstimatedCost(event.target.value)}
                 />
               </div>
-              <Button className="w-full" variant="civic" onClick={handleAssistanceApplication}>
-                Submit Application
+              <Button className="w-full" variant="civic" onClick={handleAssistanceApplication} disabled={isSubmitting}>
+                {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...</> : "Submit Application"}
               </Button>
             </CardContent>
           </Card>

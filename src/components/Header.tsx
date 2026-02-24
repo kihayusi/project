@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Shield, Menu, Globe, LogOut, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,21 +11,25 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 
+// Active-state class for nav links
+const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+  `relative text-sm font-medium transition-colors pb-0.5 ${
+    isActive
+      ? "text-civic-blue after:absolute after:bottom-[-2px] after:left-0 after:w-full after:h-[2px] after:bg-civic-blue after:rounded-full"
+      : "text-civic-gray-dark hover:text-civic-blue"
+  }`;
+
 export const Header = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
     });
 
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
     });
 
@@ -34,43 +38,41 @@ export const Header = () => {
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    toast({
-      title: "Signed out",
-      description: "You have been successfully signed out.",
-    });
+    toast({ title: "Signed out", description: "You have been successfully signed out." });
     navigate("/");
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-civic-gray bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+    <header className="sticky top-0 z-50 w-full border-b border-civic-gray bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 animate-fade-in-down">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <div className="flex items-center space-x-2">
+        {/* Logo */}
+        <div className="flex items-center space-x-2 hover:scale-105 transition-transform duration-300 cursor-pointer">
           <Shield className="h-8 w-8 text-civic-blue" />
           <div>
             <h1 className="text-xl font-bold text-civic-gray-dark">CityLife</h1>
             <p className="text-xs text-muted-foreground">San Carlos City</p>
           </div>
         </div>
-        
+
+        {/* Desktop nav */}
         <nav className="hidden md:flex items-center space-x-6">
-          <NavLink to="/" end className={({ isActive }) => `relative text-sm font-medium transition-colors pb-0.5 ${ isActive ? "text-civic-blue after:absolute after:bottom-[-2px] after:left-0 after:w-full after:h-[2px] after:bg-civic-blue after:rounded-full" : "text-civic-gray-dark hover:text-civic-blue" }`}>
-            Home
-          </NavLink>
-          <NavLink to="/services" className={({ isActive }) => `relative text-sm font-medium transition-colors pb-0.5 ${ isActive ? "text-civic-blue after:absolute after:bottom-[-2px] after:left-0 after:w-full after:h-[2px] after:bg-civic-blue after:rounded-full" : "text-civic-gray-dark hover:text-civic-blue" }`}>
-            Services
-          </NavLink>
-          <NavLink to="/announcements" className={({ isActive }) => `relative text-sm font-medium transition-colors pb-0.5 ${ isActive ? "text-civic-blue after:absolute after:bottom-[-2px] after:left-0 after:w-full after:h-[2px] after:bg-civic-blue after:rounded-full" : "text-civic-gray-dark hover:text-civic-blue" }`}>
-            Announcements
-          </NavLink>
-          <NavLink to="/emergency" className={({ isActive }) => `relative text-sm font-medium transition-colors pb-0.5 ${ isActive ? "text-civic-blue after:absolute after:bottom-[-2px] after:left-0 after:w-full after:h-[2px] after:bg-civic-blue after:rounded-full" : "text-civic-gray-dark hover:text-civic-blue" }`}>
-            Emergency
-          </NavLink>
+          <NavLink to="/" end className={navLinkClass}>Home</NavLink>
+          <NavLink to="/services" className={navLinkClass}>Services</NavLink>
+          <NavLink to="/announcements" className={navLinkClass}>Announcements</NavLink>
+          <NavLink to="/emergency" className={navLinkClass}>Emergency</NavLink>
+          {user && (
+            <NavLink to="/my-requests" className={navLinkClass}>
+              My Requests
+            </NavLink>
+          )}
         </nav>
 
+        {/* Right side actions */}
         <div className="flex items-center space-x-2">
-          <Button variant="ghost" size="icon" className="h-9 w-9">
+          <Button variant="ghost" size="icon" className="h-9 w-9 hover:rotate-12 transition-transform duration-300">
             <Globe className="h-4 w-4" />
           </Button>
+
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -101,15 +103,11 @@ export const Header = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <Button
-              variant="civic"
-              size="sm"
-              onClick={() => navigate("/auth")}
-              className="hidden md:flex"
-            >
+            <Button variant="civic" size="sm" onClick={() => navigate("/auth")} className="hidden md:flex">
               Sign In
             </Button>
           )}
+
           <Button variant="ghost" size="icon" className="h-9 w-9 md:hidden">
             <Menu className="h-4 w-4" />
           </Button>

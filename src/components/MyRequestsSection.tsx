@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, MessageSquare, Building, Heart, CheckCircle, Clock, AlertCircle, Download, Loader2 } from "lucide-react";
+import { FileText, MessageSquare, Building, Heart, CheckCircle, Clock, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const MyRequestsSection = () => {
@@ -53,66 +52,40 @@ export const MyRequestsSection = () => {
       !r.subject?.startsWith("Medical")
   );
 
+  // Resolved / ready variants are "success", everything else is pending/in-progress
   const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "resolved":
-        return <CheckCircle className="h-4 w-4 text-civic-green" />;
-      case "pending":
-      case "in_progress":
-        return <Clock className="h-4 w-4 text-amber-600" />;
-      case "Ready":
-        return <CheckCircle className="h-4 w-4 text-civic-green" />;
-      case "Processing":
-      case "In Progress":
-        return <Clock className="h-4 w-4 text-amber-600" />;
-      case "Under Review":
-        return <AlertCircle className="h-4 w-4 text-civic-blue" />;
-      default:
-        return <Clock className="h-4 w-4 text-muted-foreground" />;
-    }
+    const resolved = ["resolved", "completed", "ready_for_pickup"].includes(status);
+    return resolved
+      ? <CheckCircle className="h-4 w-4 text-civic-green" />
+      : <Clock className="h-4 w-4 text-amber-600" />;
   };
 
-  const getStatusVariant = (status: string) => {
-    switch (status) {
-      case "resolved":
-        return "default";
-      case "pending":
-      case "in_progress":
-        return "secondary";
-      case "Ready":
-        return "default";
-      case "Processing":
-      case "In Progress":
-        return "secondary";
-      case "Under Review":
-        return "outline";
-      default:
-        return "outline";
-    }
+  const getStatusVariant = (status: string): "default" | "secondary" | "outline" => {
+    if (["resolved", "completed", "ready_for_pickup"].includes(status)) return "default";
+    if (["pending", "in_progress", "processing", "out_for_delivery"].includes(status)) return "secondary";
+    return "outline";
   };
 
-  const formatStatus = (status: string) => {
-    return status.charAt(0).toUpperCase() + status.slice(1).replace("_", " ");
-  };
+  const formatStatus = (status: string) =>
+    status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, " ");
 
-  const RequestCard = ({ request, showExpectedDate = true, isConcern = false }: { request: any; showExpectedDate?: boolean; isConcern?: boolean }) => {
-    let submittedDate = request.submittedDate;
-    if (!submittedDate && request.created_at) {
-      submittedDate = new Date(request.created_at).toLocaleDateString();
-    }
-
+  const RequestCard = ({ request }: { request: any }) => {
     const isDocument = request.subject?.startsWith("Document Request:");
     const displayTitle = isDocument
       ? request.subject.replace("Document Request: ", "").replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
-      : (request.subject || request.type || request.title);
-    const CardIcon = isDocument ? FileText : isConcern ? MessageSquare : MessageSquare;
+      : (request.subject || request.title);
+    const Icon = isDocument ? FileText : MessageSquare;
+    const submittedDate = request.created_at
+      ? new Date(request.created_at).toLocaleDateString()
+      : request.submittedDate;
+    const isResolved = ["resolved", "completed"].includes(request.status);
 
     return (
       <Card className="mb-4">
         <CardContent className="p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              <CardIcon className="h-5 w-5 text-civic-blue" />
+              <Icon className="h-5 w-5 text-civic-blue" />
               <div>
                 <h4 className="font-semibold">{displayTitle}</h4>
                 <p className="text-sm text-muted-foreground">{request.id}</p>
@@ -120,37 +93,32 @@ export const MyRequestsSection = () => {
             </div>
             <div className="flex items-center gap-2">
               {getStatusIcon(request.status)}
-              <Badge variant={getStatusVariant(request.status)} className={request.status === "resolved" || request.status === "Ready" ? "bg-civic-green text-white" : ""}>
+              <Badge
+                variant={getStatusVariant(request.status)}
+                className={isResolved ? "bg-civic-green text-white" : ""}
+              >
                 {formatStatus(request.status)}
               </Badge>
             </div>
           </div>
+
           <div className="flex justify-between items-center text-sm text-muted-foreground mb-3">
             <span>Submitted: {submittedDate}</span>
-            {showExpectedDate && request.expectedDate && (
-              <span>Expected: {request.expectedDate}</span>
-            )}
-            {request.category && (
-              <span>Category: {request.category}</span>
-            )}
+            {request.category && <span>Category: {request.category}</span>}
           </div>
+
           {request.description && (
             <div className="bg-muted/50 p-3 rounded mb-3 text-sm">
               <p className="font-medium text-foreground mb-1">Description:</p>
               <p className="text-muted-foreground">{request.description}</p>
             </div>
           )}
+
           {request.admin_response && (
             <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded text-sm">
               <p className="font-medium text-blue-700 dark:text-blue-300 mb-1">Admin Response:</p>
               <p className="text-blue-600 dark:text-blue-200">{request.admin_response}</p>
             </div>
-          )}
-          {request.status === "Ready" && (
-            <Button variant="civic" size="sm" className="mt-3">
-              <Download className="h-4 w-4 mr-2" />
-              Download
-            </Button>
           )}
         </CardContent>
       </Card>
@@ -209,7 +177,7 @@ export const MyRequestsSection = () => {
                     </div>
                   ) : (
                     concerns.map((concern) => (
-                      <RequestCard key={concern.id} request={concern} showExpectedDate={false} isConcern={true} />
+                      <RequestCard key={concern.id} request={concern} />
                     ))
                   )}
                 </CardContent>

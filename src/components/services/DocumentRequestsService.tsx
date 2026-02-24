@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FileText, Download, Clock, Upload, Truck, CheckCircle2, Loader2 } from "lucide-react";
 import { openEmailRequest } from "@/lib/email";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export const DocumentRequestsService = () => {
   const [documentType, setDocumentType] = useState("");
@@ -57,11 +58,11 @@ export const DocumentRequestsService = () => {
 
   const handleSubmit = async () => {
     if (!documentType || !fullName || !purpose || !contactNumber || !email || !deliveryMethod) {
-      alert("Please fill in all required fields including delivery method");
+      toast.error("Please fill in all required fields including delivery method");
       return;
     }
     if (deliveryMethod === "home-delivery" && !deliveryAddress) {
-      alert("Please enter your delivery address");
+      toast.error("Please enter your delivery address");
       return;
     }
 
@@ -108,7 +109,7 @@ export const DocumentRequestsService = () => {
         console.warn("Email notification failed, but request was submitted:", emailError);
       }
 
-      alert("Your document request has been submitted successfully!");
+      toast.success("Your document request has been submitted successfully!");
       setDocumentType("");
       setFullName("");
       setDateRef("");
@@ -124,7 +125,7 @@ export const DocumentRequestsService = () => {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : JSON.stringify(error);
       console.error("Error submitting request:", errorMsg, error);
-      alert(`Failed to submit request: ${errorMsg}`);
+      toast.error(`Failed to submit request: ${errorMsg}`);
     }
   };
 

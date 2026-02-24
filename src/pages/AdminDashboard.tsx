@@ -14,8 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
-  BarChart3, Users, Megaphone, AlertTriangle, Plus, Pencil, Trash2, MessageSquare, Eye, Loader2, Shield,
-  Briefcase, Activity, Siren, CalendarDays, PhoneCall, FileText, Truck, CheckCircle2,
+  Users, Megaphone, AlertTriangle, Plus, Pencil, Trash2, MessageSquare, Eye, Loader2,
+  Briefcase, Activity, FileText, Truck, CheckCircle2,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
@@ -32,11 +32,8 @@ const AdminDashboard = () => {
   const [documents, setDocuments] = useState<any[]>([]);
   const [businessReqs, setBusinessReqs] = useState<any[]>([]);
   const [healthReqs, setHealthReqs] = useState<any[]>([]);
-  const [emergencyReqs, setEmergencyReqs] = useState<any[]>([]);
-  const [eventReqs, setEventReqs] = useState<any[]>([]);
-  const [contactReqs, setContactReqs] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
-  const [stats, setStats] = useState({ users: 0, announcements: 0, concerns: 0, pendingConcerns: 0 });
+  const [stats, setStats] = useState({ users: 0, announcements: 0, concerns: 0, pendingConcerns: 0, resolvedConcerns: 0, pendingDocs: 0 });
   const [loading, setLoading] = useState(true);
 
   // Announcement form
@@ -64,38 +61,50 @@ const AdminDashboard = () => {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [announcementsRes, concernsRes, docsRes, profilesRes] = await Promise.all([
+      const [announcementsRes, allConcernsRes, profilesRes] = await Promise.all([
         supabase.from("city_announcements").select("*").order("created_at", { ascending: false }),
-        supabase.from("citizen_concerns").select().not("subject", "like", "Document Request:%").order("created_at", { ascending: false }),
-        supabase.from("citizen_concerns").select().like("subject", "Document Request:%").order("created_at", { ascending: false }),
+        supabase.from("citizen_concerns").select("*").order("created_at", { ascending: false }),
         supabase.from("profiles").select("*"),
       ]);
 
       if (announcementsRes.error) console.error("Announcements error:", announcementsRes.error);
-      if (concernsRes.error) console.error("Concerns error:", concernsRes.error);
-      if (docsRes.error) console.error("Documents error:", docsRes.error);
+      if (allConcernsRes.error) console.error("Concerns error:", allConcernsRes.error);
       if (profilesRes.error) console.error("Profiles error:", profilesRes.error);
 
       const anns = announcementsRes.data || [];
       const profs = profilesRes.data || [];
+      const allItems = allConcernsRes.data || [];
 
       const mergeProfiles = (items: any[]) => items.map((item: any) => ({
         ...item,
         profiles: profs.find((p: any) => p.user_id === item.user_id) || {}
       }));
 
-      const cons = mergeProfiles(concernsRes.data || []);
-      const docs = mergeProfiles(docsRes.data || []);
+      // Split into categories based on subject prefix and category field
+      const docs = mergeProfiles(allItems.filter((c: any) => c.subject?.startsWith("Document Request:")));
+      const business = mergeProfiles(allItems.filter((c: any) => c.category === "Business Services"));
+      const health = mergeProfiles(allItems.filter((c: any) => c.category === "Health Services"));
+      const cons = mergeProfiles(allItems.filter((c: any) =>
+        !c.subject?.startsWith("Document Request:") &&
+        c.category !== "Business Services" &&
+        c.category !== "Health Services"
+      ));
 
       setAnnouncements(anns);
       setConcerns(cons);
       setDocuments(docs);
+      setBusinessReqs(business);
+      setHealthReqs(health);
       setProfiles(profs);
+
+      const allConcernsCount = cons.length + business.length + health.length;
       setStats({
         users: profs.length,
         announcements: anns.length,
-        concerns: cons.length,
-        pendingConcerns: cons.filter((c: any) => c.status === "pending").length,
+        concerns: allConcernsCount,
+        pendingConcerns: [...cons, ...business, ...health].filter((c: any) => c.status === "pending").length,
+        resolvedConcerns: [...cons, ...business, ...health].filter((c: any) => c.status === "resolved").length,
+        pendingDocs: docs.filter((d: any) => d.status === "pending").length,
       });
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -189,6 +198,17 @@ const AdminDashboard = () => {
     return map[status] ?? status;
   };
 
+  // Tab title/subtitle lookup — avoids 20 repeated conditional expressions in JSX
+  const TAB_META: Record<string, { title: string; subtitle: string }> = {
+    overview:      { title: "Dashboard Overview",    subtitle: "Monitor city services at a glance" },
+    announcements: { title: "City Announcements",    subtitle: "Create and manage announcements" },
+    concerns:      { title: "Citizen Concerns",      subtitle: "View and respond to citizen-submitted concerns" },
+    documents:     { title: "Document Requests",     subtitle: "View and process document requests from citizens" },
+    business:      { title: "Business Services",     subtitle: "Manage business service requests and permits" },
+    health:        { title: "Health Services",        subtitle: "Track health service requests and vaccination inquiries" },
+    users:         { title: "Registered Users",      subtitle: "View all registered users" },
+  };
+
   if (roleLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -205,30 +225,8 @@ const AdminDashboard = () => {
       <main className="ml-64 min-h-screen p-8">
         {/* Header bar */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-foreground">
-            {activeTab === "overview" && "Dashboard Overview"}
-            {activeTab === "announcements" && "City Announcements"}
-            {activeTab === "concerns" && "Citizen Concerns"}
-            {activeTab === "documents" && "Document Requests"}
-            {activeTab === "business" && "Business Services"}
-            {activeTab === "health" && "Health Services"}
-            {activeTab === "emergency" && "Emergency Services"}
-            {activeTab === "events" && "Community Events"}
-            {activeTab === "contact" && "Contact Directory"}
-            {activeTab === "users" && "Registered Users"}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {activeTab === "overview" && "Monitor city services at a glance"}
-            {activeTab === "announcements" && "Create and manage announcements"}
-            {activeTab === "concerns" && "View and respond to citizen-submitted concerns"}
-            {activeTab === "documents" && "View and process document requests from citizens"}
-            {activeTab === "business" && "Manage business service requests and permits"}
-            {activeTab === "health" && "Track health service requests and vaccination inquiries"}
-            {activeTab === "emergency" && "Review emergency service requests"}
-            {activeTab === "events" && "Manage community event registrations and inquiries"}
-            {activeTab === "contact" && "Manage contact directory inquiries"}
-            {activeTab === "users" && "View all registered users"}
-          </p>
+          <h1 className="text-2xl font-bold text-foreground">{TAB_META[activeTab]?.title}</h1>
+          <p className="text-sm text-muted-foreground">{TAB_META[activeTab]?.subtitle}</p>
         </div>
 
         {/* Overview */}
@@ -238,7 +236,7 @@ const AdminDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
                 { label: "Total Users", value: stats.users, icon: Users, color: "text-primary" },
-                { label: "Announcements", value: stats.announcements, icon: Megaphone, color: "text-accent" },
+                { label: "Resolved Concerns", value: stats.resolvedConcerns, icon: CheckCircle2, color: "text-accent" },
                 { label: "Total Concerns", value: stats.concerns, icon: MessageSquare, color: "text-primary" },
                 { label: "Pending Concerns", value: stats.pendingConcerns, icon: AlertTriangle, color: "text-destructive" },
               ].map((stat) => (
@@ -263,11 +261,14 @@ const AdminDashboard = () => {
                   <CardDescription>Breakdown of all submitted concerns</CardDescription>
                 </CardHeader>
                 <CardContent>
+                  {(() => {
+                    const allConcerns = [...concerns, ...businessReqs, ...healthReqs];
+                    return (
                   <ResponsiveContainer width="100%" height={250}>
                     <BarChart data={[
-                      { name: "Pending", count: concerns.filter((c: any) => c.status === "pending").length },
-                      { name: "In Progress", count: concerns.filter((c: any) => c.status === "in_progress").length },
-                      { name: "Resolved", count: concerns.filter((c: any) => c.status === "resolved").length },
+                      { name: "Pending", count: allConcerns.filter((c: any) => c.status === "pending").length },
+                      { name: "In Progress", count: allConcerns.filter((c: any) => c.status === "in_progress").length },
+                      { name: "Resolved", count: allConcerns.filter((c: any) => c.status === "resolved").length },
                     ]} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" />
                       <XAxis dataKey="name" tick={{ fontSize: 12 }} />
@@ -276,6 +277,8 @@ const AdminDashboard = () => {
                       <Bar dataKey="count" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
+                    );
+                  })()}
                 </CardContent>
               </Card>
 
@@ -287,8 +290,9 @@ const AdminDashboard = () => {
                 </CardHeader>
                 <CardContent>
                   {(() => {
+                    const allConcerns = [...concerns, ...businessReqs, ...healthReqs];
                     const categoryMap: Record<string, number> = {};
-                    concerns.forEach((c: any) => {
+                    allConcerns.forEach((c: any) => {
                       const cat = c.category || "Other";
                       categoryMap[cat] = (categoryMap[cat] || 0) + 1;
                     });
@@ -327,9 +331,10 @@ const AdminDashboard = () => {
                     d.setDate(d.getDate() - (6 - i));
                     return d;
                   });
+                  const allConcerns = [...concerns, ...businessReqs, ...healthReqs];
                   const dailyData = days.map((d) => {
                     const label = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-                    const count = concerns.filter((c: any) => {
+                    const count = allConcerns.filter((c: any) => {
                       const cd = new Date(c.created_at);
                       return cd.toDateString() === d.toDateString();
                     }).length;
@@ -385,7 +390,7 @@ const AdminDashboard = () => {
                         <Select value={announcementForm.category} onValueChange={(v) => setAnnouncementForm({ ...announcementForm, category: v })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {["General", "Health", "Public Hearing", "Festival", "Emergency", "Infrastructure"].map((c) => (
+                            {["General", "Event", "Health", "Public Hearing", "Festival", "Emergency", "Infrastructure"].map((c) => (
                               <SelectItem key={c} value={c}>{c}</SelectItem>
                             ))}
                           </SelectContent>
@@ -700,13 +705,10 @@ const AdminDashboard = () => {
         )}
 
         {/* Reusable service request table */}
-        {(activeTab === "business" || activeTab === "health" || activeTab === "emergency" || activeTab === "events" || activeTab === "contact") && (() => {
+        {(activeTab === "business" || activeTab === "health") && (() => {
           const serviceMap: Record<string, { data: any[]; icon: React.FC<any>; label: string; statusOptions: string[] }> = {
-            business:  { data: businessReqs,  icon: Briefcase,    label: "Business Request",    statusOptions: ["pending", "in_progress", "resolved"] },
-            health:    { data: healthReqs,     icon: Activity,     label: "Health Request",       statusOptions: ["pending", "in_progress", "resolved"] },
-            emergency: { data: emergencyReqs,  icon: Siren,        label: "Emergency Request",    statusOptions: ["pending", "in_progress", "resolved"] },
-            events:    { data: eventReqs,      icon: CalendarDays, label: "Event Inquiry",        statusOptions: ["pending", "in_progress", "resolved"] },
-            contact:   { data: contactReqs,    icon: PhoneCall,    label: "Contact Inquiry",      statusOptions: ["pending", "in_progress", "resolved"] },
+            business:  { data: businessReqs,  icon: Briefcase, label: "Business Request",  statusOptions: ["pending", "in_progress", "resolved"] },
+            health:    { data: healthReqs,     icon: Activity,  label: "Health Request",    statusOptions: ["pending", "in_progress", "resolved"] },
           };
           const svc = serviceMap[activeTab];
           return (
@@ -716,9 +718,6 @@ const AdminDashboard = () => {
                   <svc.icon className="h-5 w-5" />
                   {activeTab === "business" && "Business Services"}
                   {activeTab === "health" && "Health Services"}
-                  {activeTab === "emergency" && "Emergency Services"}
-                  {activeTab === "events" && "Community Events"}
-                  {activeTab === "contact" && "Contact Directory"}
                 </CardTitle>
                 <CardDescription>
                   View and respond to {svc.label.toLowerCase()} submissions

@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { MessageSquare, Send, CheckCircle, Clock, AlertCircle } from "lucide-react";
 import { openEmailRequest } from "@/lib/email";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export const CitizenConcernsService = () => {
   const [category, setCategory] = useState("");
@@ -36,7 +37,7 @@ export const CitizenConcernsService = () => {
 
   const handleSubmit = async () => {
     if (!category || !subject || !details) {
-      alert("Please fill in all required fields (Category, Subject, Details)");
+      toast.error("Please fill in all required fields (Category, Subject, Details)");
       return;
     }
 
@@ -76,7 +77,7 @@ export const CitizenConcernsService = () => {
         console.warn("Email notification failed, but concern was submitted:", emailError);
       }
 
-      alert("Your concern has been submitted successfully!");
+      toast.success("Your concern has been submitted successfully!");
       setCategory("");
       setSubject("");
       setLocation("");
@@ -85,7 +86,7 @@ export const CitizenConcernsService = () => {
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : JSON.stringify(error);
       console.error("Error submitting concern:", errorMsg, error);
-      alert(`Failed to submit concern: ${errorMsg}`);
+      toast.error(`Failed to submit concern: ${errorMsg}`);
     }
   };
 

@@ -6,9 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Building, FileText, DollarSign, Users, TrendingUp } from "lucide-react";
+import { Building, FileText, DollarSign, Users, TrendingUp, Loader2 } from "lucide-react";
 import { openEmailRequest } from "@/lib/email";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export const BusinessServicesService = () => {
   const [businessName, setBusinessName] = useState("");
@@ -29,7 +30,7 @@ export const BusinessServicesService = () => {
 
   const handleRegistration = async () => {
     if (!businessName || !businessType || !businessAddress) {
-      alert("Please fill in all required fields");
+      toast.error("Please fill in all required fields");
       return;
     }
 
@@ -65,19 +66,19 @@ export const BusinessServicesService = () => {
         console.warn("Email notification failed, but registration was submitted:", emailError);
       }
 
-      alert("Your business registration request has been submitted!");
+      toast.success("Your business registration request has been submitted!");
       setBusinessName("");
       setBusinessType("");
       setBusinessAddress("");
     } catch (error) {
       console.error("Error submitting registration:", error);
-      alert("Failed to submit registration. Please try again.");
+      toast.error("Failed to submit registration. Please try again.");
     }
   };
 
   const handlePermitRenewal = async () => {
     if (!permitNumber || !permitType) {
-      alert("Please fill in all required fields");
+      toast.error("Please fill in all required fields");
       return;
     }
 
@@ -112,12 +113,12 @@ export const BusinessServicesService = () => {
         console.warn("Email notification failed, but renewal was submitted:", emailError);
       }
 
-      alert("Your permit renewal request has been submitted!");
+      toast.success("Your permit renewal request has been submitted!");
       setPermitNumber("");
       setPermitType("");
     } catch (error) {
       console.error("Error submitting renewal:", error);
-      alert("Failed to submit renewal request. Please try again.");
+      toast.error("Failed to submit renewal request. Please try again.");
     }
   };
 

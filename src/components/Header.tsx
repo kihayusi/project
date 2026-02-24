@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Shield, Menu, Globe, LogOut, User } from "lucide-react";
+import { Shield, Menu, Globe, LogOut, User, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   DropdownMenu,
@@ -21,8 +21,15 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 
 export const Header = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [user, setUser] = useState<any>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -108,11 +115,47 @@ export const Header = () => {
             </Button>
           )}
 
-          <Button variant="ghost" size="icon" className="h-9 w-9 md:hidden">
-            <Menu className="h-4 w-4" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 md:hidden"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label="Toggle mobile menu"
+          >
+            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </Button>
         </div>
       </div>
+
+      {/* Mobile menu */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-t border-civic-gray bg-white animate-fade-in">
+          <nav className="flex flex-col px-4 py-3 space-y-1">
+            <NavLink to="/" end className={({ isActive }) =>
+              `block px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? "bg-civic-blue/10 text-civic-blue" : "text-civic-gray-dark hover:bg-gray-100"}`
+            }>Home</NavLink>
+            <NavLink to="/services" className={({ isActive }) =>
+              `block px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? "bg-civic-blue/10 text-civic-blue" : "text-civic-gray-dark hover:bg-gray-100"}`
+            }>Services</NavLink>
+            <NavLink to="/announcements" className={({ isActive }) =>
+              `block px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? "bg-civic-blue/10 text-civic-blue" : "text-civic-gray-dark hover:bg-gray-100"}`
+            }>Announcements</NavLink>
+            <NavLink to="/emergency" className={({ isActive }) =>
+              `block px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? "bg-civic-blue/10 text-civic-blue" : "text-civic-gray-dark hover:bg-gray-100"}`
+            }>Emergency</NavLink>
+            {user && (
+              <NavLink to="/my-requests" className={({ isActive }) =>
+                `block px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? "bg-civic-blue/10 text-civic-blue" : "text-civic-gray-dark hover:bg-gray-100"}`
+              }>My Requests</NavLink>
+            )}
+            {!user && (
+              <Button variant="civic" size="sm" onClick={() => navigate("/auth")} className="mt-2 w-full">
+                Sign In
+              </Button>
+            )}
+          </nav>
+        </div>
+      )}
     </header>
   );
 };

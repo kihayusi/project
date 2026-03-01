@@ -6,14 +6,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { FileText, Download, Upload, Loader2 } from "lucide-react";
+import { FileText, Download, Upload, Loader2, Truck } from "lucide-react";
 import { openEmailRequest } from "@/lib/email";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { GCashPayment, SERVICE_FEES } from "@/components/GCashPayment";
+import { createNotification } from "@/components/NotificationBell";
+import { generateOrderId } from "@/lib/utils";
 
 export const DocumentRequestsService = () => {
-  const [documentType, setDocumentType] = useState("");
+  const [documentType, setDocumentType] = useState("birth-certificate");
   const [fullName, setFullName] = useState("");
   const [dateRef, setDateRef] = useState("");
   const [placeOfRegistration, setPlaceOfRegistration] = useState("");
@@ -24,7 +26,15 @@ export const DocumentRequestsService = () => {
   const [validId, setValidId] = useState<File | null>(null);
   const [authLetter, setAuthLetter] = useState<File | null>(null);
   const [deliveryMethod, setDeliveryMethod] = useState("");
-  const [deliveryAddress, setDeliveryAddress] = useState("");
+  const [delRecipient, setDelRecipient] = useState("");
+  const [delPhone, setDelPhone] = useState("");
+  const [delHouseNo, setDelHouseNo] = useState("");
+  const [delStreet, setDelStreet] = useState("");
+  const [delBarangay, setDelBarangay] = useState("");
+  const [delCity, setDelCity] = useState("");
+  const [delProvince, setDelProvince] = useState("");
+  const [delPostalCode, setDelPostalCode] = useState("");
+  const [delLandmark, setDelLandmark] = useState("");
 
   // Birth certificate specific fields
   const [bcFirstName, setBcFirstName] = useState("");
@@ -122,6 +132,19 @@ export const DocumentRequestsService = () => {
     });
   }, []);
 
+  /** Upload a file to Supabase Storage and return its public URL */
+  const uploadFile = async (file: File, userId: string, folder: string): Promise<string | null> => {
+    const ext = file.name.split(".").pop() ?? "bin";
+    const path = `${userId}/${folder}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await supabase.storage.from("uploads").upload(path, file, { upsert: false });
+    if (error) {
+      console.error("Upload error:", error);
+      return null;
+    }
+    const { data } = supabase.storage.from("uploads").getPublicUrl(path);
+    return data?.publicUrl ?? null;
+  };
+
   const handleSubmit = async () => {
     if (!documentType || !deliveryMethod || !contactNumber || !email) {
       toast.error("Please fill in all required fields including delivery method");
@@ -160,10 +183,14 @@ export const DocumentRequestsService = () => {
       }
     }
 
-    if (deliveryMethod === "home-delivery" && !deliveryAddress) {
-      toast.error("Please enter your delivery address");
+    if (deliveryMethod === "home-delivery" && (!delRecipient || !delPhone || !delHouseNo || !delBarangay || !delCity || !delProvince)) {
+      toast.error("Please fill in all required delivery address fields");
       return;
     }
+
+    const deliveryAddress = deliveryMethod === "home-delivery"
+      ? `${delRecipient} | ${delPhone}\n${delHouseNo}${delStreet ? ", " + delStreet : ""}, ${delBarangay}, ${delCity}, ${delProvince}${delPostalCode ? " " + delPostalCode : ""}${delLandmark ? " (" + delLandmark + ")" : ""}`
+      : "";
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) {
@@ -172,6 +199,15 @@ export const DocumentRequestsService = () => {
     }
 
     try {
+      // Upload all attached files to Supabase Storage
+      const uid = session.user.id;
+      const validIdUrl = validId ? await uploadFile(validId, uid, "valid-id") : null;
+      const authLetterUrl = authLetter ? await uploadFile(authLetter, uid, "auth-letter") : null;
+      const rcUtilityBillUrl = rcUtilityBill ? await uploadFile(rcUtilityBill, uid, "proof-residency") : null;
+      const rcLeaseContractUrl = rcLeaseContract ? await uploadFile(rcLeaseContract, uid, "proof-residency") : null;
+      const rcBarangayIdUrl = rcBarangayId ? await uploadFile(rcBarangayId, uid, "proof-residency") : null;
+      const rcCedulaUrl = rcCedula ? await uploadFile(rcCedula, uid, "proof-residency") : null;
+
       const description = isBirthCert
         ? [
             `Full Name: ${bcFirstName} ${bcMiddleName ? bcMiddleName + " " : ""}${bcLastName}`,
@@ -185,8 +221,8 @@ export const DocumentRequestsService = () => {
             `Purpose of Request: ${bcPurpose}`,
             `Contact Number: ${contactNumber}`,
             `Email Address: ${email}`,
-            validId ? `Valid ID: ${validId.name}` : "",
-            authLetter ? `Authorization Letter: ${authLetter.name}` : "",
+            validIdUrl ? `Valid ID: [photo]${validIdUrl}` : validId ? `Valid ID: ${validId.name}` : "",
+            authLetterUrl ? `Authorization Letter: [photo]${authLetterUrl}` : authLetter ? `Authorization Letter: ${authLetter.name}` : "",
             `Delivery Method: ${deliveryMethod === "home-delivery" ? "Home Delivery" : "Pickup at City Hall"}`,
             deliveryMethod === "home-delivery" ? `Delivery Address: ${deliveryAddress}` : "",
           ].filter(Boolean).join("\n\n")
@@ -202,8 +238,8 @@ export const DocumentRequestsService = () => {
             `Purpose of Request: ${mcPurpose}`,
             `Contact Number: ${contactNumber}`,
             `Email Address: ${email}`,
-            validId ? `Valid ID: ${validId.name}` : "",
-            authLetter ? `Authorization Letter: ${authLetter.name}` : "",
+            validIdUrl ? `Valid ID: [photo]${validIdUrl}` : validId ? `Valid ID: ${validId.name}` : "",
+            authLetterUrl ? `Authorization Letter: [photo]${authLetterUrl}` : authLetter ? `Authorization Letter: ${authLetter.name}` : "",
             `Delivery Method: ${deliveryMethod === "home-delivery" ? "Home Delivery" : "Pickup at City Hall"}`,
             deliveryMethod === "home-delivery" ? `Delivery Address: ${deliveryAddress}` : "",
           ].filter(Boolean).join("\n\n")
@@ -220,8 +256,8 @@ export const DocumentRequestsService = () => {
             `Purpose of Request: ${dcPurpose}`,
             `Contact Number: ${contactNumber}`,
             `Email Address: ${email}`,
-            validId ? `Valid ID: ${validId.name}` : "",
-            authLetter ? `Authorization Letter: ${authLetter.name}` : "",
+            validIdUrl ? `Valid ID: [photo]${validIdUrl}` : validId ? `Valid ID: ${validId.name}` : "",
+            authLetterUrl ? `Authorization Letter: [photo]${authLetterUrl}` : authLetter ? `Authorization Letter: ${authLetter.name}` : "",
             `Delivery Method: ${deliveryMethod === "home-delivery" ? "Home Delivery" : "Pickup at City Hall"}`,
             deliveryMethod === "home-delivery" ? `Delivery Address: ${deliveryAddress}` : "",
           ].filter(Boolean).join("\n\n")
@@ -244,8 +280,8 @@ export const DocumentRequestsService = () => {
             cdIsBusinessOwner && cdBusinessCapitalization ? `Business Capitalization: ₱${cdBusinessCapitalization}` : "",
             `Contact Number: ${contactNumber}`,
             `Email Address: ${email}`,
-            validId ? `Valid ID: ${validId.name}` : "",
-            authLetter ? `Authorization Letter: ${authLetter.name}` : "",
+            validIdUrl ? `Valid ID: [photo]${validIdUrl}` : validId ? `Valid ID: ${validId.name}` : "",
+            authLetterUrl ? `Authorization Letter: [photo]${authLetterUrl}` : authLetter ? `Authorization Letter: ${authLetter.name}` : "",
             `Delivery Method: ${deliveryMethod === "home-delivery" ? "Home Delivery" : "Pickup at City Hall"}`,
             deliveryMethod === "home-delivery" ? `Delivery Address: ${deliveryAddress}` : "",
           ].filter(Boolean).join("\n\n")
@@ -264,12 +300,12 @@ export const DocumentRequestsService = () => {
             `Purpose of Request: ${rcPurpose}`,
             `Contact Number: ${contactNumber}`,
             `Email Address: ${email}`,
-            validId ? `Valid ID: ${validId.name}` : "",
-            rcUtilityBill ? `Utility Bill: ${rcUtilityBill.name}` : "",
-            rcLeaseContract ? `Lease Contract: ${rcLeaseContract.name}` : "",
-            rcBarangayId ? `Barangay ID: ${rcBarangayId.name}` : "",
-            rcCedula ? `Community Tax Certificate (Cedula): ${rcCedula.name}` : "",
-            authLetter ? `Authorization Letter: ${authLetter.name}` : "",
+            validIdUrl ? `Valid ID: [photo]${validIdUrl}` : validId ? `Valid ID: ${validId.name}` : "",
+            rcUtilityBillUrl ? `Utility Bill: [photo]${rcUtilityBillUrl}` : rcUtilityBill ? `Utility Bill: ${rcUtilityBill.name}` : "",
+            rcLeaseContractUrl ? `Lease Contract: [photo]${rcLeaseContractUrl}` : rcLeaseContract ? `Lease Contract: ${rcLeaseContract.name}` : "",
+            rcBarangayIdUrl ? `Barangay ID: [photo]${rcBarangayIdUrl}` : rcBarangayId ? `Barangay ID: ${rcBarangayId.name}` : "",
+            rcCedulaUrl ? `Community Tax Certificate (Cedula): [photo]${rcCedulaUrl}` : rcCedula ? `Community Tax Certificate (Cedula): ${rcCedula.name}` : "",
+            authLetterUrl ? `Authorization Letter: [photo]${authLetterUrl}` : authLetter ? `Authorization Letter: ${authLetter.name}` : "",
             `Delivery Method: ${deliveryMethod === "home-delivery" ? "Home Delivery" : "Pickup at City Hall"}`,
             deliveryMethod === "home-delivery" ? `Delivery Address: ${deliveryAddress}` : "",
           ].filter(Boolean).join("\n\n")
@@ -280,8 +316,8 @@ export const DocumentRequestsService = () => {
             `Purpose of Request: ${purpose}`,
             `Contact Number: ${contactNumber}`,
             `Email Address: ${email}`,
-            validId ? `Valid ID: ${validId.name}` : "",
-            authLetter ? `Authorization Letter: ${authLetter.name}` : "",
+            validIdUrl ? `Valid ID: [photo]${validIdUrl}` : validId ? `Valid ID: ${validId.name}` : "",
+            authLetterUrl ? `Authorization Letter: [photo]${authLetterUrl}` : authLetter ? `Authorization Letter: ${authLetter.name}` : "",
             `Delivery Method: ${deliveryMethod === "home-delivery" ? "Home Delivery" : "Pickup at City Hall"}`,
             deliveryMethod === "home-delivery" ? `Delivery Address: ${deliveryAddress}` : "",
           ].filter(Boolean).join("\n\n");
@@ -310,12 +346,26 @@ export const DocumentRequestsService = () => {
 
       // Open GCash payment dialog for the newly created request
       const newRequestId = data?.[0]?.id;
+
+      // Create a notification for the user
+      if (session?.user?.id) {
+        await createNotification(
+          session.user.id,
+          "Request Submitted",
+          `Your ${documentType.replace(/-/g, " ")} request has been submitted and is now being processed.`,
+          "success",
+          newRequestId,
+        );
+      }
+
+      const orderId = newRequestId ? generateOrderId(newRequestId, new Date().toISOString()) : null;
+
       if (newRequestId && SERVICE_FEES[documentType]) {
         setPendingRequestId(newRequestId);
         setPaymentOpen(true);
-        toast.success("Request submitted! Please complete payment via GCash.");
+        toast.success(`Request submitted! Order ID: ${orderId}. Please complete payment via GCash.`);
       } else {
-        toast.success("Your document request has been submitted successfully!");
+        toast.success(`Your document request has been submitted! Order ID: ${orderId}`);
       }
       setDocumentType("");
       setFullName("");
@@ -327,7 +377,15 @@ export const DocumentRequestsService = () => {
       setValidId(null);
       setAuthLetter(null);
       setDeliveryMethod("");
-      setDeliveryAddress("");
+      setDelRecipient("");
+      setDelPhone("");
+      setDelHouseNo("");
+      setDelStreet("");
+      setDelBarangay("");
+      setDelCity("");
+      setDelProvince("");
+      setDelPostalCode("");
+      setDelLandmark("");
       // Reset birth certificate fields
       setBcFirstName("");
       setBcMiddleName("");
@@ -1100,7 +1158,7 @@ export const DocumentRequestsService = () => {
             {/* Delivery Method */}
             <div>
               <Label htmlFor="delivery-method">Delivery Method <span className="text-destructive">*</span></Label>
-              <Select value={deliveryMethod} onValueChange={(v) => { setDeliveryMethod(v); setDeliveryAddress(""); }}>
+              <Select value={deliveryMethod} onValueChange={(v) => { setDeliveryMethod(v); }}>
                 <SelectTrigger>
                   <SelectValue placeholder="How would you like to receive the document?" />
                 </SelectTrigger>
@@ -1111,17 +1169,67 @@ export const DocumentRequestsService = () => {
               </Select>
             </div>
 
-            {/* Delivery Address — shown only for home delivery */}
+            {/* Shopee-style Delivery Address */}
             {deliveryMethod === "home-delivery" && (
-              <div>
-                <Label htmlFor="delivery-address">Delivery Address <span className="text-destructive">*</span></Label>
-                <Textarea
-                  id="delivery-address"
-                  placeholder="Enter your complete address for delivery..."
-                  rows={2}
-                  value={deliveryAddress}
-                  onChange={(e) => setDeliveryAddress(e.target.value)}
-                />
+              <div className="rounded-xl border-2 border-dashed border-orange-300 bg-orange-50/40 p-4 space-y-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <Truck className="h-4 w-4 text-orange-500" />
+                  <p className="text-sm font-semibold text-orange-700">Delivery Address</p>
+                </div>
+
+                {/* Recipient + Phone */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label htmlFor="del-recipient" className="text-xs">Recipient Name <span className="text-destructive">*</span></Label>
+                    <Input id="del-recipient" placeholder="e.g. Juan Dela Cruz" value={delRecipient} onChange={(e) => setDelRecipient(e.target.value)} className="bg-white" />
+                  </div>
+                  <div>
+                    <Label htmlFor="del-phone" className="text-xs">Phone Number <span className="text-destructive">*</span></Label>
+                    <Input id="del-phone" placeholder="e.g. 09XX-XXX-XXXX" value={delPhone} onChange={(e) => setDelPhone(e.target.value)} className="bg-white" />
+                  </div>
+                </div>
+
+                {/* House No. + Street */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label htmlFor="del-house" className="text-xs">House / Unit / Floor No. <span className="text-destructive">*</span></Label>
+                    <Input id="del-house" placeholder="e.g. 123 / Blk 5 Lot 10" value={delHouseNo} onChange={(e) => setDelHouseNo(e.target.value)} className="bg-white" />
+                  </div>
+                  <div>
+                    <Label htmlFor="del-street" className="text-xs">Street Name</Label>
+                    <Input id="del-street" placeholder="e.g. Rizal St." value={delStreet} onChange={(e) => setDelStreet(e.target.value)} className="bg-white" />
+                  </div>
+                </div>
+
+                {/* Barangay + City */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label htmlFor="del-brgy" className="text-xs">Barangay <span className="text-destructive">*</span></Label>
+                    <Input id="del-brgy" placeholder="e.g. Brgy. Bonifacio" value={delBarangay} onChange={(e) => setDelBarangay(e.target.value)} className="bg-white" />
+                  </div>
+                  <div>
+                    <Label htmlFor="del-city" className="text-xs">City / Municipality <span className="text-destructive">*</span></Label>
+                    <Input id="del-city" placeholder="e.g. San Carlos City" value={delCity} onChange={(e) => setDelCity(e.target.value)} className="bg-white" />
+                  </div>
+                </div>
+
+                {/* Province + Postal Code */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <Label htmlFor="del-province" className="text-xs">Province <span className="text-destructive">*</span></Label>
+                    <Input id="del-province" placeholder="e.g. Pangasinan" value={delProvince} onChange={(e) => setDelProvince(e.target.value)} className="bg-white" />
+                  </div>
+                  <div>
+                    <Label htmlFor="del-postal" className="text-xs">Postal Code</Label>
+                    <Input id="del-postal" placeholder="e.g. 2420" value={delPostalCode} onChange={(e) => setDelPostalCode(e.target.value)} className="bg-white" />
+                  </div>
+                </div>
+
+                {/* Landmark */}
+                <div>
+                  <Label htmlFor="del-landmark" className="text-xs">Landmark <span className="text-xs font-normal text-muted-foreground">(optional — helps the courier find you)</span></Label>
+                  <Input id="del-landmark" placeholder="e.g. Near San Carlos City Plaza, beside Mercury Drug" value={delLandmark} onChange={(e) => setDelLandmark(e.target.value)} className="bg-white" />
+                </div>
               </div>
             )}
 
@@ -1161,6 +1269,7 @@ export const DocumentRequestsService = () => {
               payment_method: "gcash",
               reference_number: info.referenceNumber,
               gcash_number: info.gcashNumber,
+              proof_url: info.proofUrl,
               status: "pending_verification",
             } as any);
 

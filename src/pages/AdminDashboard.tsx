@@ -16,8 +16,10 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
   Users, Megaphone, AlertTriangle, Plus, Pencil, Trash2, MessageSquare, Eye, Loader2,
-  Briefcase, Activity, FileText, Truck, CheckCircle2,
+  Briefcase, Activity, FileText, Truck, CheckCircle2, Copy,
 } from "lucide-react";
+import { generateOrderId } from "@/lib/utils";
+import { createNotification } from "@/components/NotificationBell";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from "recharts";
@@ -34,6 +36,7 @@ const AdminDashboard = () => {
   const [businessReqs, setBusinessReqs] = useState<any[]>([]);
   const [healthReqs, setHealthReqs] = useState<any[]>([]);
   const [profiles, setProfiles] = useState<any[]>([]);
+  const [payments, setPayments] = useState<any[]>([]);
   const [stats, setStats] = useState({ users: 0, announcements: 0, concerns: 0, pendingConcerns: 0, resolvedConcerns: 0, pendingDocs: 0 });
   const [loading, setLoading] = useState(true);
 
@@ -62,19 +65,23 @@ const AdminDashboard = () => {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [announcementsRes, allConcernsRes, profilesRes] = await Promise.all([
+      const [announcementsRes, allConcernsRes, profilesRes, paymentsRes] = await Promise.all([
         supabase.from("city_announcements").select("*").order("created_at", { ascending: false }),
         supabase.from("citizen_concerns").select("*").order("created_at", { ascending: false }),
         supabase.from("profiles").select("*"),
+        supabase.from("payments" as any).select("*").order("created_at", { ascending: false }),
       ]);
 
       if (announcementsRes.error) console.error("Announcements error:", announcementsRes.error);
       if (allConcernsRes.error) console.error("Concerns error:", allConcernsRes.error);
       if (profilesRes.error) console.error("Profiles error:", profilesRes.error);
+      if (paymentsRes.error) console.error("Payments error:", paymentsRes.error);
 
       const anns = announcementsRes.data || [];
       const profs = profilesRes.data || [];
       const allItems = allConcernsRes.data || [];
+      const pays = (paymentsRes.data as any[]) || [];
+      setPayments(pays);
 
       const mergeProfiles = (items: any[]) => items.map((item: any) => ({
         ...item,
@@ -144,19 +151,51 @@ const AdminDashboard = () => {
   };
 
   const handleRespondConcern = async () => {
-    if (!responseText) {
-      toast({ title: "Error", description: "Response is required.", variant: "destructive" });
-      return;
-    }
-    const { error } = await supabase.from("citizen_concerns").update({
-      admin_response: responseText,
+    // Build update payload — response text is optional for status-only updates
+    const updatePayload: any = {
       status: responseStatus,
       responded_by: user?.id,
       responded_at: new Date().toISOString(),
-    }).eq("id", selectedConcern.id);
+    };
+    if (responseText.trim()) {
+      updatePayload.admin_response = responseText.trim();
+    }
 
-    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Responded", description: "Response sent successfully." });
+    console.log("[Admin] Updating concern", selectedConcern.id, "to status:", responseStatus, "user_id:", selectedConcern.user_id);
+
+    const { error } = await supabase.from("citizen_concerns").update(updatePayload).eq("id", selectedConcern.id);
+
+    if (error) {
+      console.error("[Admin] Update failed:", error);
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+      return;
+    }
+
+    // Send notification to the citizen
+    const statusLabels: Record<string, string> = {
+      pending: "Pending",
+      in_progress: "In Progress",
+      processing: "Processing",
+      approved: "Approved",
+      ready_for_pickup: "Ready for Pickup",
+      out_for_delivery: "Out for Delivery",
+      completed: "Completed",
+      resolved: "Resolved",
+    };
+    const friendlyStatus = statusLabels[responseStatus] || responseStatus;
+    const orderId = generateOrderId(selectedConcern.id, selectedConcern.created_at);
+    const notifTitle = `Status Update: ${friendlyStatus}`;
+    const notifMessage = `Your request ${orderId} ("${selectedConcern.subject}") has been updated to ${friendlyStatus}.${responseText.trim() ? ` Admin note: ${responseText.trim()}` : ""}`;
+
+    console.log("[Admin] Sending notification to user:", selectedConcern.user_id);
+
+    if (selectedConcern.user_id) {
+      await createNotification(selectedConcern.user_id, notifTitle, notifMessage, "status_update", selectedConcern.id);
+    } else {
+      console.warn("[Admin] No user_id on selectedConcern — cannot send notification");
+    }
+
+    toast({ title: "Updated", description: `Status changed to ${friendlyStatus}.` });
     setRespondDialog(false);
     setSelectedConcern(null);
     setResponseText("");
@@ -465,6 +504,7 @@ const AdminDashboard = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Order ID</TableHead>
                       <TableHead>Subject</TableHead>
                       <TableHead>From</TableHead>
                       <TableHead>Category</TableHead>
@@ -476,6 +516,7 @@ const AdminDashboard = () => {
                   <TableBody>
                     {concerns.map((concern) => (
                       <TableRow key={concern.id}>
+                        <TableCell><code className="text-xs font-mono text-civic-blue bg-civic-blue/10 px-1.5 py-0.5 rounded">{generateOrderId(concern.id, concern.created_at)}</code></TableCell>
                         <TableCell className="font-medium">{concern.subject}</TableCell>
                         <TableCell>{(concern.profiles as any)?.full_name || (concern.profiles as any)?.email || "Unknown"}</TableCell>
                         <TableCell><Badge variant="secondary">{concern.category}</Badge></TableCell>
@@ -573,6 +614,7 @@ const AdminDashboard = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead>Order ID</TableHead>
                       <TableHead>Document Type</TableHead>
                       <TableHead>Requested By</TableHead>
                       <TableHead>Delivery</TableHead>
@@ -587,6 +629,7 @@ const AdminDashboard = () => {
                       const deliveryType = deliveryLine?.includes("Home Delivery") ? "Home Delivery" : "Pickup";
                       return (
                         <TableRow key={doc.id}>
+                          <TableCell><code className="text-xs font-mono text-civic-blue bg-civic-blue/10 px-1.5 py-0.5 rounded">{generateOrderId(doc.id, doc.created_at)}</code></TableCell>
                           <TableCell className="font-medium">{doc.subject.replace("Document Request: ", "").replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}</TableCell>
                           <TableCell>{(doc.profiles as any)?.full_name || (doc.profiles as any)?.email || "Unknown"}</TableCell>
                           <TableCell>
@@ -615,6 +658,7 @@ const AdminDashboard = () => {
                                   const lines: string[] = (selectedConcern.description || "").split("\n\n");
                                   const getLine = (prefix: string) => lines.find((l: string) => l.startsWith(prefix))?.replace(prefix, "") ?? "—";
                                   const deliveryMethod = getLine("Delivery Method: ");
+                                  const isHomeDelivery = deliveryMethod.includes("Home Delivery");
                                   const deliveryAddr = getLine("Delivery Address: ");
                                   return (
                                     <div className="space-y-4 pt-2">
@@ -633,25 +677,48 @@ const AdminDashboard = () => {
                                       {/* Submitted details */}
                                       <div>
                                         <Label className="text-muted-foreground text-xs uppercase tracking-wide">Request Details</Label>
-                                        <div className="mt-1 bg-muted/30 rounded p-3 text-sm space-y-1">
-                                          {lines.filter((l: string) => l && !l.startsWith("Delivery Method:") && !l.startsWith("Delivery Address:")).map((l: string, i: number) => (
-                                            <p key={i}>{l}</p>
-                                          ))}
+                                        <div className="mt-1">
+                                          <ParsedDescription description={selectedConcern.description} />
                                         </div>
                                       </div>
+
+                                      {/* Payment Proof */}
+                                      {(() => {
+                                        const payment = payments.find((p: any) => p.request_id === selectedConcern.id);
+                                        if (!payment) return null;
+                                        return (
+                                          <div className="border rounded-lg p-3 space-y-2">
+                                            <Label className="text-muted-foreground text-xs uppercase tracking-wide">Payment Info</Label>
+                                            <div className="text-sm space-y-1">
+                                              <p><span className="text-muted-foreground">Ref #:</span> <span className="font-mono">{payment.reference_number}</span></p>
+                                              <p><span className="text-muted-foreground">GCash #:</span> {payment.gcash_number}</p>
+                                              <p><span className="text-muted-foreground">Amount:</span> ₱{Number(payment.amount).toFixed(2)}</p>
+                                              <p><span className="text-muted-foreground">Status:</span> <Badge variant={payment.status === "verified" ? "default" : payment.status === "rejected" ? "destructive" : "secondary"}>{payment.status}</Badge></p>
+                                            </div>
+                                            {payment.proof_url && (
+                                              <div>
+                                                <p className="text-xs text-muted-foreground mb-1">Payment Screenshot:</p>
+                                                <a href={payment.proof_url} target="_blank" rel="noopener noreferrer" className="inline-block">
+                                                  <img src={payment.proof_url} alt="Payment proof" className="max-w-[200px] max-h-[200px] rounded border object-cover hover:opacity-80 transition" />
+                                                </a>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })()}
 
                                       {/* Delivery info */}
                                       <div className="border rounded-lg p-3 space-y-2">
                                         <Label className="text-muted-foreground text-xs uppercase tracking-wide">Delivery</Label>
                                         <div className="flex items-center gap-2">
-                                          {deliveryMethod === "Home Delivery (via courier)" ? (
+                                          {isHomeDelivery ? (
                                             <Truck className="h-4 w-4 text-purple-600" />
                                           ) : (
                                             <CheckCircle2 className="h-4 w-4 text-civic-blue" />
                                           )}
                                           <span className="font-medium text-sm">{deliveryMethod}</span>
                                         </div>
-                                        {deliveryMethod === "Home Delivery (via courier)" && deliveryAddr !== "—" && (
+                                        {isHomeDelivery && deliveryAddr !== "—" && (
                                           <p className="text-sm text-muted-foreground pl-6">{deliveryAddr}</p>
                                         )}
                                       </div>
@@ -666,7 +733,7 @@ const AdminDashboard = () => {
                                           <SelectContent>
                                             <SelectItem value="pending">1 — Pending (received, not yet started)</SelectItem>
                                             <SelectItem value="processing">2 — Processing (document being prepared)</SelectItem>
-                                            {deliveryMethod === "Home Delivery (via courier)" ? (
+                                            {isHomeDelivery ? (
                                               <SelectItem value="out_for_delivery">3 — Out for Delivery (sent via courier)</SelectItem>
                                             ) : (
                                               <SelectItem value="ready_for_pickup">3 — Ready for Pickup (at City Hall)</SelectItem>

@@ -46,6 +46,7 @@ interface GCashPaymentProps {
     gcashNumber: string;
     amount: number;
     proofFileName: string | null;
+    proofUrl: string | null;
   }) => void;
   /** Called when the user cancels */
   onCancel?: () => void;
@@ -98,11 +99,29 @@ export const GCashPayment = ({
 
     setSubmitting(true);
     try {
+      // Upload proof screenshot to Supabase Storage if provided
+      let proofUrl: string | null = null;
+      if (proofFile) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const ext = proofFile.name.split(".").pop() ?? "jpg";
+          const path = `${session.user.id}/payment-proof/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+          const { error: uploadErr } = await supabase.storage.from("uploads").upload(path, proofFile, { upsert: false });
+          if (!uploadErr) {
+            const { data } = supabase.storage.from("uploads").getPublicUrl(path);
+            proofUrl = data?.publicUrl ?? null;
+          } else {
+            console.warn("Proof upload failed:", uploadErr);
+          }
+        }
+      }
+
       onPaymentSubmitted({
         referenceNumber: referenceNumber.trim(),
         gcashNumber: gcashNumber.trim(),
         amount,
         proofFileName: proofFile?.name ?? null,
+        proofUrl,
       });
       resetForm();
     } catch (err) {

@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
+import { NotificationBell } from "@/components/NotificationBell";
 
 // Active-state class for nav links
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
@@ -80,11 +81,6 @@ export const Header = () => {
               My Requests
             </NavLink>
           )}
-          {user && (
-            <NavLink to="/payments" className={navLinkClass}>
-              Payments
-            </NavLink>
-          )}
         </nav>
 
         {/* Right side actions */}
@@ -92,6 +88,8 @@ export const Header = () => {
           <Button variant="ghost" size="icon" className="h-9 w-9 hover:rotate-12 transition-transform duration-300">
             <Globe className="h-4 w-4" />
           </Button>
+
+          {user && <NotificationBell />}
 
           {user ? (
             <DropdownMenu>
@@ -160,11 +158,6 @@ export const Header = () => {
               <NavLink to="/my-requests" className={({ isActive }) =>
                 `block px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? "bg-civic-blue/10 text-civic-blue" : "text-civic-gray-dark hover:bg-gray-100"}`
               }>My Requests</NavLink>
-            )}
-            {user && (
-              <NavLink to="/payments" className={({ isActive }) =>
-                `block px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? "bg-civic-blue/10 text-civic-blue" : "text-civic-gray-dark hover:bg-gray-100"}`
-              }>Payments</NavLink>
             )}
             {user ? (
               <button

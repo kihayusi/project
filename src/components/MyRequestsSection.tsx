@@ -1,13 +1,69 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, MessageSquare, Building, Heart, CheckCircle2, Clock, Loader2, ClipboardCheck, CircleDot, Truck, Package } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { FileText, MessageSquare, Building, Heart, CheckCircle2, Clock, Loader2, ClipboardCheck, CircleDot, Truck, Package, Pencil, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { generateOrderId } from "@/lib/utils";
+import { toast } from "sonner";
 
 export const MyRequestsSection = () => {
   const [allRequests, setAllRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const highlightId = searchParams.get("id");
+  const tabParam = searchParams.get("tab");
+  const highlightRef = useRef<HTMLDivElement>(null);
+  const [editingRequest, setEditingRequest] = useState<any>(null);
+  const [editDescription, setEditDescription] = useState("");
+  const [editSubject, setEditSubject] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const handleCancelRequest = async (id: string) => {
+    try {
+      const { error } = await supabase.from("citizen_concerns").delete().eq("id", id);
+      if (error) throw error;
+      toast.success("Request cancelled successfully.");
+      setAllRequests((prev) => prev.filter((r) => r.id !== id));
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to cancel request.");
+    }
+  };
+
+  const handleOpenEdit = (request: any) => {
+    setEditingRequest(request);
+    setEditSubject(request.subject || "");
+    setEditDescription(request.description || "");
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingRequest) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase.from("citizen_concerns").update({
+        subject: editSubject,
+        description: editDescription,
+      }).eq("id", editingRequest.id);
+      if (error) throw error;
+      toast.success("Request updated successfully.");
+      setAllRequests((prev) => prev.map((r) =>
+        r.id === editingRequest.id ? { ...r, subject: editSubject, description: editDescription } : r
+      ));
+      setEditingRequest(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update request.");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     fetchUserConcerns();
@@ -40,6 +96,15 @@ export const MyRequestsSection = () => {
     }
   };
 
+  // Scroll to highlighted request after render
+  useEffect(() => {
+    if (highlightId && highlightRef.current) {
+      setTimeout(() => {
+        highlightRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 300);
+    }
+  }, [highlightId, loading]);
+
   const documentRequests = allRequests.filter((r) => r.subject?.startsWith("Document Request:"));
   const businessRequests = allRequests.filter((r) => r.subject?.startsWith("Business"));
   const healthRequests = allRequests.filter((r) => r.subject?.startsWith("Health") || r.subject?.startsWith("Vaccination") || r.subject?.startsWith("Medical"));
@@ -56,15 +121,18 @@ export const MyRequestsSection = () => {
     status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, " ");
 
   const RequestCard = ({ request }: { request: any }) => {
+    const isHighlighted = request.id === highlightId;
     const isDocument = request.subject?.startsWith("Document Request:");
     const displayTitle = isDocument
       ? request.subject.replace("Document Request: ", "").replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
       : (request.subject || request.title);
     const Icon = isDocument ? FileText : MessageSquare;
+    const orderId = generateOrderId(request.id, request.created_at);
 
-    // Parse delivery method from description
-    const deliveryLine = (request.description || "").split("\n\n").find((l: string) => l.startsWith("Delivery Method:"));
-    const delivery = deliveryLine?.includes("Home Delivery") ? "Home Delivery" : "Pickup";
+    // Parse delivery method from description (robust: try \n\n and \n splits, also regex)
+    const descText = request.description || "";
+    const deliveryMatch = descText.match(/Delivery Method:\s*(.*)/i);
+    const delivery = deliveryMatch?.[1]?.includes("Home Delivery") ? "Home Delivery" : "Pickup";
 
     // Timeline steps — Shopee-style, context-aware per request type
     const steps = isDocument
@@ -98,7 +166,12 @@ export const MyRequestsSection = () => {
     const st = statusStyle[request.status] ?? { label: request.status, badgeClass: "bg-muted text-muted-foreground" };
 
     return (
-      <div className="rounded-xl border bg-white p-4 space-y-4 shadow-sm mb-4">
+      <div
+        ref={isHighlighted ? highlightRef : undefined}
+        className={`rounded-xl border bg-white p-4 space-y-4 shadow-sm mb-4 transition-all duration-500 ${
+          isHighlighted ? "ring-2 ring-civic-blue ring-offset-2 bg-blue-50/30" : ""
+        }`}
+      >
         {/* Top: title + status + date */}
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -107,9 +180,12 @@ export const MyRequestsSection = () => {
             </div>
             <div>
               <p className="font-semibold text-sm">{displayTitle}</p>
-              <p className="text-[11px] text-muted-foreground">
-                {new Date(request.created_at).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-[11px] font-mono font-medium text-civic-blue bg-civic-blue/10 px-1.5 py-0.5 rounded">{orderId}</span>
+                <p className="text-[11px] text-muted-foreground">
+                  {new Date(request.created_at).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </p>
+              </div>
             </div>
           </div>
           <Badge variant="outline" className={`text-[10px] px-2 py-0.5 font-semibold border ${st.badgeClass}`}>
@@ -150,7 +226,7 @@ export const MyRequestsSection = () => {
                   <p className="text-[11px] text-muted-foreground leading-snug">{step.desc}</p>
                   {isCurrent && i === 0 && (
                     <p className="text-[10px] text-muted-foreground/70 mt-0.5">
-                      {isDocument ? `${delivery} · ` : ""}ID: {request.id.substring(0, 8)}
+                      {isDocument ? `${delivery} · ` : ""}Order ID: {orderId}
                     </p>
                   )}
                 </div>
@@ -164,6 +240,47 @@ export const MyRequestsSection = () => {
           <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2.5">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 mb-0.5">Admin Note</p>
             <p className="text-sm text-blue-900">{request.admin_response}</p>
+          </div>
+        )}
+
+        {/* Cancel / Edit — only when still pending */}
+        {request.status === "pending" && (
+          <div className="flex items-center gap-2 pt-1 border-t">
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs gap-1.5"
+              onClick={() => handleOpenEdit(request)}
+            >
+              <Pencil className="h-3.5 w-3.5" />
+              Edit Details
+            </Button>
+
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" size="sm" className="text-xs gap-1.5 text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700">
+                  <X className="h-3.5 w-3.5" />
+                  Cancel Request
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Cancel this request?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will permanently cancel and remove your request <strong>{orderId}</strong> ({displayTitle}). This action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep Request</AlertDialogCancel>
+                  <AlertDialogAction
+                    className="bg-red-600 hover:bg-red-700"
+                    onClick={() => handleCancelRequest(request.id)}
+                  >
+                    Yes, Cancel Request
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         )}
       </div>
@@ -195,7 +312,13 @@ export const MyRequestsSection = () => {
         </div>
 
         <div className="max-w-4xl mx-auto">
-          <Tabs defaultValue="concerns" className="w-full">
+          <Tabs defaultValue={tabParam || "concerns"} className="w-full" onValueChange={(v) => {
+            // Clear highlight when switching tabs manually
+            const params = new URLSearchParams(searchParams);
+            params.set("tab", v);
+            params.delete("id");
+            setSearchParams(params, { replace: true });
+          }}>
             <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="concerns">Concerns</TabsTrigger>
               <TabsTrigger value="documents">Documents</TabsTrigger>
@@ -309,6 +432,51 @@ export const MyRequestsSection = () => {
           </Tabs>
         </div>
       </div>
+
+      {/* Edit Request Dialog */}
+      <Dialog open={!!editingRequest} onOpenChange={(open) => { if (!open) setEditingRequest(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Request Details</DialogTitle>
+          </DialogHeader>
+          {editingRequest && (() => {
+            const isDoc = editingRequest.subject?.startsWith("Document Request:");
+            const orderId = generateOrderId(editingRequest.id, editingRequest.created_at);
+
+            // Parse description lines for a friendly editor
+            const lines = editDescription.split(/\n\n|\n/).filter(Boolean);
+
+            return (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span className="font-mono text-civic-blue bg-civic-blue/10 px-1.5 py-0.5 rounded text-xs">{orderId}</span>
+                  <span>{isDoc ? editingRequest.subject.replace("Document Request: ", "").replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) : editingRequest.subject}</span>
+                </div>
+
+                <div>
+                  <Label className="text-sm font-medium">Request Details</Label>
+                  <p className="text-xs text-muted-foreground mb-2">Edit the information you submitted. Each field should be on its own line.</p>
+                  <Textarea
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    rows={12}
+                    className="font-mono text-sm"
+                    placeholder="Enter your request details..."
+                  />
+                </div>
+
+                <DialogFooter className="gap-2">
+                  <Button variant="outline" onClick={() => setEditingRequest(null)}>Cancel</Button>
+                  <Button variant="civic" onClick={handleSaveEdit} disabled={saving}>
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Pencil className="h-4 w-4 mr-2" />}
+                    Save Changes
+                  </Button>
+                </DialogFooter>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 };

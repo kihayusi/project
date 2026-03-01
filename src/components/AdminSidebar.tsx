@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import cityLogo from "@/assets/san-carlos-city-seal.png";
 
 interface AdminSidebarProps {
   activeTab: string;
@@ -49,16 +50,16 @@ export const AdminSidebar = ({ activeTab, onTabChange, user }: AdminSidebarProps
   const { toast } = useToast();
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "global" });
     toast({ title: "Signed out", description: "You have been successfully signed out." });
-    navigate("/auth");
+    navigate("/");
   };
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-border bg-card">
       {/* Logo */}
       <div className="flex h-16 items-center gap-2 border-b border-border px-6">
-        <Shield className="h-7 w-7 text-primary" />
+        <img src={cityLogo} alt="San Carlos City Seal" className="h-9 w-9 object-contain" />
         <div>
           <h1 className="text-lg font-bold text-foreground">CityLife</h1>
           <p className="text-[10px] leading-none text-muted-foreground">Admin Panel</p>

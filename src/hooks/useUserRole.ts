@@ -7,9 +7,11 @@ export const useUserRole = () => {
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    const checkRole = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+    const checkRole = async (sessionOverride?: any) => {
+      const session = sessionOverride ?? (await supabase.auth.getSession()).data.session;
       if (!session?.user) {
+        setUser(null);
+        setIsAdmin(false);
         setLoading(false);
         return;
       }
@@ -28,8 +30,9 @@ export const useUserRole = () => {
 
     checkRole();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      checkRole();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setLoading(true);
+      checkRole(session);
     });
 
     return () => subscription.unsubscribe();

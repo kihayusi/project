@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { FileText, MessageSquare, Building, Heart, CheckCircle, Clock, Loader2 } from "lucide-react";
+import { FileText, MessageSquare, Building, Heart, CheckCircle2, Clock, Loader2, ClipboardCheck, CircleDot, Truck, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const MyRequestsSection = () => {
@@ -52,20 +52,6 @@ export const MyRequestsSection = () => {
       !r.subject?.startsWith("Medical")
   );
 
-  // Resolved / ready variants are "success", everything else is pending/in-progress
-  const getStatusIcon = (status: string) => {
-    const resolved = ["resolved", "completed", "ready_for_pickup"].includes(status);
-    return resolved
-      ? <CheckCircle className="h-4 w-4 text-civic-green" />
-      : <Clock className="h-4 w-4 text-amber-600" />;
-  };
-
-  const getStatusVariant = (status: string): "default" | "secondary" | "outline" => {
-    if (["resolved", "completed", "ready_for_pickup"].includes(status)) return "default";
-    if (["pending", "in_progress", "processing", "out_for_delivery"].includes(status)) return "secondary";
-    return "outline";
-  };
-
   const formatStatus = (status: string) =>
     status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, " ");
 
@@ -75,53 +61,112 @@ export const MyRequestsSection = () => {
       ? request.subject.replace("Document Request: ", "").replace(/-/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
       : (request.subject || request.title);
     const Icon = isDocument ? FileText : MessageSquare;
-    const submittedDate = request.created_at
-      ? new Date(request.created_at).toLocaleDateString()
-      : request.submittedDate;
-    const isResolved = ["resolved", "completed"].includes(request.status);
+
+    // Parse delivery method from description
+    const deliveryLine = (request.description || "").split("\n\n").find((l: string) => l.startsWith("Delivery Method:"));
+    const delivery = deliveryLine?.includes("Home Delivery") ? "Home Delivery" : "Pickup";
+
+    // Timeline steps — Shopee-style, context-aware per request type
+    const steps = isDocument
+      ? [
+          { key: "submitted", label: "Request Submitted", desc: `Your ${displayTitle} request has been received`, icon: <ClipboardCheck className="h-4 w-4" /> },
+          { key: "processing", label: "Processing", desc: "Your request is being reviewed by the office", icon: <Loader2 className="h-4 w-4" /> },
+          { key: "ready", label: delivery === "Home Delivery" ? "Out for Delivery" : "Ready for Pickup", desc: delivery === "Home Delivery" ? "Your document is on its way" : "You can claim your document at City Hall", icon: delivery === "Home Delivery" ? <Truck className="h-4 w-4" /> : <Package className="h-4 w-4" /> },
+          { key: "completed", label: "Completed", desc: "Your document has been released", icon: <CheckCircle2 className="h-4 w-4" /> },
+        ]
+      : [
+          { key: "submitted", label: "Report Submitted", desc: `Your concern "${displayTitle}" has been received`, icon: <ClipboardCheck className="h-4 w-4" /> },
+          { key: "processing", label: "Under Review", desc: "Your concern is being reviewed by the assigned office", icon: <Loader2 className="h-4 w-4" /> },
+          { key: "action", label: "Action Taken", desc: "The office has taken action to address your concern", icon: <Package className="h-4 w-4" /> },
+          { key: "completed", label: "Resolved", desc: "Your concern has been resolved", icon: <CheckCircle2 className="h-4 w-4" /> },
+        ];
+
+    // Map status to active step index
+    const statusStep: Record<string, number> = { pending: 0, in_progress: 1, processing: 1, ready_for_pickup: 2, out_for_delivery: 2, completed: 3, resolved: 3 };
+    const activeStep = statusStep[request.status] ?? 0;
+
+    // Status badge color
+    const statusStyle: Record<string, { label: string; badgeClass: string }> = {
+      pending:          { label: "Pending",          badgeClass: "bg-amber-100 text-amber-700 border-amber-200" },
+      in_progress:      { label: "In Progress",     badgeClass: "bg-blue-100 text-blue-700 border-blue-200" },
+      processing:       { label: "Processing",       badgeClass: "bg-blue-100 text-blue-700 border-blue-200" },
+      ready_for_pickup: { label: "Ready for Pickup", badgeClass: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+      out_for_delivery: { label: "Out for Delivery", badgeClass: "bg-purple-100 text-purple-700 border-purple-200" },
+      completed:        { label: "Completed",        badgeClass: "bg-green-100 text-green-700 border-green-200" },
+      resolved:         { label: "Completed",        badgeClass: "bg-green-100 text-green-700 border-green-200" },
+    };
+    const st = statusStyle[request.status] ?? { label: request.status, badgeClass: "bg-muted text-muted-foreground" };
 
     return (
-      <Card className="mb-4">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-3">
+      <div className="rounded-xl border bg-white p-4 space-y-4 shadow-sm mb-4">
+        {/* Top: title + status + date */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="rounded-lg bg-civic-blue/10 p-2">
               <Icon className="h-5 w-5 text-civic-blue" />
-              <div>
-                <h4 className="font-semibold">{displayTitle}</h4>
-                <p className="text-sm text-muted-foreground">{request.id}</p>
+            </div>
+            <div>
+              <p className="font-semibold text-sm">{displayTitle}</p>
+              <p className="text-[11px] text-muted-foreground">
+                {new Date(request.created_at).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </p>
+            </div>
+          </div>
+          <Badge variant="outline" className={`text-[10px] px-2 py-0.5 font-semibold border ${st.badgeClass}`}>
+            {st.label}
+          </Badge>
+        </div>
+
+        {/* Timeline stepper — vertical like Shopee */}
+        <div className="pl-2">
+          {steps.map((step, i) => {
+            const isDone = i < activeStep;
+            const isCurrent = i === activeStep;
+            const isFuture = i > activeStep;
+
+            return (
+              <div key={step.key} className="flex gap-3">
+                {/* Vertical line + dot */}
+                <div className="flex flex-col items-center">
+                  <div className={`flex items-center justify-center h-7 w-7 rounded-full border-2 flex-shrink-0 ${
+                    isCurrent ? "border-civic-blue bg-civic-blue text-white" :
+                    isDone ? "border-green-500 bg-green-500 text-white" :
+                    "border-gray-200 bg-white text-gray-300"
+                  }`}>
+                    {isDone ? <CheckCircle2 className="h-3.5 w-3.5" /> :
+                     isCurrent ? step.icon :
+                     <CircleDot className="h-3.5 w-3.5" />}
+                  </div>
+                  {i < steps.length - 1 && (
+                    <div className={`w-0.5 flex-1 min-h-[24px] ${isDone ? "bg-green-400" : "bg-gray-200"}`} />
+                  )}
+                </div>
+
+                {/* Label + description */}
+                <div className={`pb-4 ${isFuture ? "opacity-40" : ""}`}>
+                  <p className={`text-sm font-medium leading-7 ${isCurrent ? "text-civic-blue" : isDone ? "text-green-700" : "text-muted-foreground"}`}>
+                    {step.label}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground leading-snug">{step.desc}</p>
+                  {isCurrent && i === 0 && (
+                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">
+                      {isDocument ? `${delivery} · ` : ""}ID: {request.id.substring(0, 8)}
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {getStatusIcon(request.status)}
-              <Badge
-                variant={getStatusVariant(request.status)}
-                className={isResolved ? "bg-civic-green text-white" : ""}
-              >
-                {formatStatus(request.status)}
-              </Badge>
-            </div>
+            );
+          })}
+        </div>
+
+        {/* Admin response */}
+        {request.admin_response && (
+          <div className="rounded-lg bg-blue-50 border border-blue-200 px-3 py-2.5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 mb-0.5">Admin Note</p>
+            <p className="text-sm text-blue-900">{request.admin_response}</p>
           </div>
-
-          <div className="flex justify-between items-center text-sm text-muted-foreground mb-3">
-            <span>Submitted: {submittedDate}</span>
-            {request.category && <span>Category: {request.category}</span>}
-          </div>
-
-          {request.description && (
-            <div className="bg-muted/50 p-3 rounded mb-3 text-sm">
-              <p className="font-medium text-foreground mb-1">Description:</p>
-              <p className="text-muted-foreground">{request.description}</p>
-            </div>
-          )}
-
-          {request.admin_response && (
-            <div className="bg-blue-50 dark:bg-blue-950 p-3 rounded text-sm">
-              <p className="font-medium text-blue-700 dark:text-blue-300 mb-1">Admin Response:</p>
-              <p className="text-blue-600 dark:text-blue-200">{request.admin_response}</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        )}
+      </div>
     );
   };
 

@@ -45,9 +45,16 @@ export const Header = () => {
   }, []);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    toast({ title: "Signed out", description: "You have been successfully signed out." });
-    navigate("/");
+    try {
+      await supabase.auth.signOut({ scope: "global" });
+      setUser(null);
+      toast({ title: "Signed out", description: "You have been successfully signed out." });
+      navigate("/");
+    } catch (error) {
+      // Force clear even if signOut fails
+      setUser(null);
+      navigate("/");
+    }
   };
 
   return (
@@ -71,6 +78,11 @@ export const Header = () => {
           {user && (
             <NavLink to="/my-requests" className={navLinkClass}>
               My Requests
+            </NavLink>
+          )}
+          {user && (
+            <NavLink to="/payments" className={navLinkClass}>
+              Payments
             </NavLink>
           )}
         </nav>
@@ -149,7 +161,20 @@ export const Header = () => {
                 `block px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? "bg-civic-blue/10 text-civic-blue" : "text-civic-gray-dark hover:bg-gray-100"}`
               }>My Requests</NavLink>
             )}
-            {!user && (
+            {user && (
+              <NavLink to="/payments" className={({ isActive }) =>
+                `block px-3 py-2 rounded-md text-sm font-medium transition-colors ${isActive ? "bg-civic-blue/10 text-civic-blue" : "text-civic-gray-dark hover:bg-gray-100"}`
+              }>Payments</NavLink>
+            )}
+            {user ? (
+              <button
+                onClick={handleSignOut}
+                className="flex items-center w-full px-3 py-2 rounded-md text-sm font-medium text-red-600 hover:bg-red-50 transition-colors mt-1"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign Out
+              </button>
+            ) : (
               <Button variant="civic" size="sm" onClick={() => navigate("/auth")} className="mt-2 w-full">
                 Sign In
               </Button>

@@ -48,11 +48,21 @@ const Auth = () => {
   };
 
   useEffect(() => {
+    // Only auto-redirect if user didn't explicitly navigate to /auth
+    const isManualVisit = window.location.pathname.includes('/auth');
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
+      if (session && !isManualVisit) {
         checkAndRedirect(session.user.id);
       }
     });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        checkAndRedirect(session.user.id);
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -64,7 +74,7 @@ const Auth = () => {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/project/`,
+          emailRedirectTo: `${window.location.origin}/`,
         },
       });
 
@@ -123,7 +133,7 @@ const Auth = () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: `${window.location.origin}/project/` },
+        options: { redirectTo: `${window.location.origin}/` },
       });
       if (error) throw error;
     } catch (error: any) {

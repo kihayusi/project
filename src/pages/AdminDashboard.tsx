@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { AdminSidebar } from "@/components/AdminSidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ParsedDescription } from "@/components/ParsedDescription";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -504,7 +505,9 @@ const AdminDashboard = () => {
                                   </div>
                                   <div>
                                     <Label className="text-muted-foreground">Description</Label>
-                                    <p className="text-sm">{selectedConcern.description}</p>
+                                    <div className="mt-1">
+                                      <ParsedDescription description={selectedConcern.description} />
+                                    </div>
                                   </div>
                                   {selectedConcern.location && (
                                     <div>
@@ -783,7 +786,9 @@ const AdminDashboard = () => {
                                     {selectedConcern.description && (
                                       <div>
                                         <Label className="text-muted-foreground">Description</Label>
-                                        <p className="text-sm whitespace-pre-wrap">{selectedConcern.description}</p>
+                                        <div className="mt-1">
+                                          <ParsedDescription description={selectedConcern.description} />
+                                        </div>
                                       </div>
                                     )}
                                     {selectedConcern.location && (

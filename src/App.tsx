@@ -11,6 +11,7 @@ import Services from "./pages/Services";
 import Announcements from "./pages/Announcements";
 import Contact from "./pages/Contact";
 import MyRequests from "./pages/MyRequests";
+import PaymentHistory from "./pages/PaymentHistory";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -20,7 +21,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter basename="/project">
+      <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth/*" element={<Auth />} />
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/contact" element={<Contact />} />
           <Route path="/emergency" element={<EmergencyServices />} />
           <Route path="/my-requests" element={<MyRequests />} />
+          <Route path="/payments" element={<PaymentHistory />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

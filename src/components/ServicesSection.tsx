@@ -1,8 +1,7 @@
 import { ServiceCard } from "@/components/ServiceCard";
-import { FileText, Megaphone, MessageSquare, Users, Building, Phone, Heart } from "lucide-react";
+import { FileText, MessageSquare, Users, Building, Phone, Heart } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DocumentRequestsService } from "@/components/services/DocumentRequestsService";
-import { CityAnnouncementsService } from "@/components/services/CityAnnouncementsService";
 import { CitizenConcernsService } from "@/components/services/CitizenConcernsService";
 import { CommunityEventsService } from "@/components/services/CommunityEventsService";
 import { BusinessServicesService } from "@/components/services/BusinessServicesService";
@@ -16,12 +15,6 @@ export const ServicesSection = () => {
       description: "Apply for permits, certificates, and other official documents online",
       icon: FileText,
       component: DocumentRequestsService,
-    },
-    {
-      title: "City Announcements",
-      description: "Stay updated with the latest news, events, and public notices",
-      icon: Megaphone,
-      component: CityAnnouncementsService,
     },
     {
       title: "Citizen Concerns",
@@ -68,7 +61,7 @@ export const ServicesSection = () => {
           </p>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {services.map((service, index) => {
             const ServiceComponent = service.component;
             return (
@@ -79,7 +72,6 @@ export const ServicesSection = () => {
                       title={service.title}
                       description={service.description}
                       icon={service.icon}
-                      variant={service.variant}
                     />
                   </div>
                 </DialogTrigger>

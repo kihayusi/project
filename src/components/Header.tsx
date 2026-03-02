@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Shield, Menu, Globe, LogOut, User, X } from "lucide-react";
+import { Shield, Menu, LogOut, User, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import cityLogo from "@/assets/san-carlos-city-seal.png";
 import {
@@ -84,10 +84,6 @@ export const Header = () => {
 
         {/* Right side actions */}
         <div className="flex items-center space-x-2">
-          <Button variant="ghost" size="icon" className="h-9 w-9 hover:rotate-12 transition-transform duration-300">
-            <Globe className="h-4 w-4" />
-          </Button>
-
           {user && <NotificationBell />}
 
           {user ? (

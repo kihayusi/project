@@ -342,9 +342,16 @@ const AdminDashboard = () => {
 
   if (!isAdmin) return null;
 
+  const badgeCounts = {
+    concerns: concerns.filter((c: any) => c.status === "pending").length,
+    documents: documents.filter((d: any) => d.status === "pending").length,
+    business: businessReqs.filter((b: any) => b.status === "pending").length,
+    health: healthReqs.filter((h: any) => h.status === "pending").length,
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      <AdminSidebar activeTab={activeTab} onTabChange={setActiveTab} user={user} />
+      <AdminSidebar activeTab={activeTab} onTabChange={setActiveTab} user={user} badgeCounts={badgeCounts} />
       <main className="ml-64 min-h-screen p-8">
         {/* Header bar */}
         <div className="mb-8">

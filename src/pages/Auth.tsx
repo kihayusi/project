@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Shield, X } from "lucide-react";
 import authIllustration from "@/assets/auth-illustration.svg";
 
@@ -32,7 +32,6 @@ const OrDivider = () => (
 
 const Auth = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -80,16 +79,9 @@ const Auth = () => {
 
       if (error) throw error;
 
-      toast({
-        title: "Success!",
-        description: "Account created successfully. You can now log in.",
-      });
+      toast.success("Account created successfully. You can now log in.");
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -107,10 +99,7 @@ const Auth = () => {
 
       if (error) throw error;
 
-      toast({
-        title: "Welcome back!",
-        description: "You have successfully logged in.",
-      });
+      toast.success("You have successfully logged in.");
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         await checkAndRedirect(session.user.id);
@@ -118,11 +107,7 @@ const Auth = () => {
         navigate("/");
       }
     } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast.error(error.message);
     } finally {
       setIsLoading(false);
     }
@@ -137,7 +122,7 @@ const Auth = () => {
       });
       if (error) throw error;
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error(error.message);
       setIsLoading(false);
     }
   };

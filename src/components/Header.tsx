@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { NotificationBell } from "@/components/NotificationBell";
 
 // Active-state class for nav links
@@ -24,7 +24,6 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 export const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { toast } = useToast();
   const [user, setUser] = useState<any>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -49,7 +48,7 @@ export const Header = () => {
     try {
       await supabase.auth.signOut({ scope: "global" });
       setUser(null);
-      toast({ title: "Signed out", description: "You have been successfully signed out." });
+      toast.success("You have been successfully signed out.");
       navigate("/");
     } catch (error) {
       // Force clear even if signOut fails

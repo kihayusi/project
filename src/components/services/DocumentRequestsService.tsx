@@ -11,7 +11,7 @@ import { openEmailRequest } from "@/lib/email";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { GCashPayment, SERVICE_FEES } from "@/components/GCashPayment";
-import { createNotification } from "@/components/NotificationBell";
+import { createNotification } from "@/services/notifications";
 import { generateOrderId } from "@/lib/utils";
 
 export const DocumentRequestsService = () => {

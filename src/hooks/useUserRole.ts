@@ -1,18 +1,21 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import type { User, Session } from "@supabase/supabase-js";
 
 export const useUserRole = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const initialised = useRef(false);
 
   useEffect(() => {
-    const checkRole = async (sessionOverride?: any) => {
+    const checkRole = async (sessionOverride?: Session | null) => {
       const session = sessionOverride ?? (await supabase.auth.getSession()).data.session;
       if (!session?.user) {
         setUser(null);
         setIsAdmin(false);
         setLoading(false);
+        initialised.current = true;
         return;
       }
       setUser(session.user);
@@ -26,12 +29,19 @@ export const useUserRole = () => {
 
       setIsAdmin(!!data);
       setLoading(false);
+      initialised.current = true;
     };
 
     checkRole();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setLoading(true);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Token refreshes fire on tab focus — the Supabase client already
+      // updated the token internally. Skip completely to avoid re-renders.
+      if (event === "TOKEN_REFRESHED") return;
+
+      if (initialised.current) {
+        setLoading(true);
+      }
       checkRole(session);
     });
 

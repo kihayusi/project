@@ -10,7 +10,7 @@ import { MessageSquare, Send, MapPin, Upload, Loader2, Tag, FileText, Info, X, I
 import { openEmailRequest } from "@/lib/email";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { createNotification } from "@/components/NotificationBell";
+import { createNotification } from "@/services/notifications";
 import { generateOrderId } from "@/lib/utils";
 
 const CATEGORIES = [

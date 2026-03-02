@@ -14,6 +14,123 @@ export type Database = {
   }
   public: {
     Tables: {
+      city_alerts: {
+        Row: {
+          id: string
+          title: string
+          description: string
+          severity: string
+          category: string
+          is_active: boolean
+          created_by: string | null
+          starts_at: string
+          expires_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          description: string
+          severity?: string
+          category?: string
+          is_active?: boolean
+          created_by?: string | null
+          starts_at?: string
+          expires_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          description?: string
+          severity?: string
+          category?: string
+          is_active?: boolean
+          created_by?: string | null
+          starts_at?: string
+          expires_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      emergency_reports: {
+        Row: {
+          id: string
+          user_id: string
+          type: string
+          subject: string
+          description: string
+          location: string
+          latitude: number | null
+          longitude: number | null
+          photo_urls: string[]
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type?: string
+          subject: string
+          description: string
+          location?: string
+          latitude?: number | null
+          longitude?: number | null
+          photo_urls?: string[]
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: string
+          subject?: string
+          description?: string
+          location?: string
+          latitude?: number | null
+          longitude?: number | null
+          photo_urls?: string[]
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sos_reports: {
+        Row: {
+          id: string
+          user_id: string
+          latitude: number | null
+          longitude: number | null
+          message: string
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          latitude?: number | null
+          longitude?: number | null
+          message?: string
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          latitude?: number | null
+          longitude?: number | null
+          message?: string
+          status?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       citizen_concerns: {
         Row: {
           admin_response: string | null
@@ -21,6 +138,7 @@ export type Database = {
           created_at: string
           description: string
           id: string
+          location: string
           responded_at: string | null
           responded_by: string | null
           status: string
@@ -34,6 +152,7 @@ export type Database = {
           created_at?: string
           description: string
           id?: string
+          location?: string
           responded_at?: string | null
           responded_by?: string | null
           status?: string
@@ -47,6 +166,7 @@ export type Database = {
           created_at?: string
           description?: string
           id?: string
+          location?: string
           responded_at?: string | null
           responded_by?: string | null
           status?: string
@@ -64,6 +184,8 @@ export type Database = {
           description: string
           event_date: string | null
           id: string
+          image_url: string | null
+          is_pinned: boolean
           is_published: boolean
           location: string | null
           title: string
@@ -76,6 +198,8 @@ export type Database = {
           description: string
           event_date?: string | null
           id?: string
+          image_url?: string | null
+          is_pinned?: boolean
           is_published?: boolean
           location?: string | null
           title: string
@@ -88,6 +212,8 @@ export type Database = {
           description?: string
           event_date?: string | null
           id?: string
+          image_url?: string | null
+          is_pinned?: boolean
           is_published?: boolean
           location?: string | null
           title?: string
@@ -143,6 +269,90 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          title: string
+          message: string
+          type: string
+          reference_id: string | null
+          is_read: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          title: string
+          message: string
+          type?: string
+          reference_id?: string | null
+          is_read?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          title?: string
+          message?: string
+          type?: string
+          reference_id?: string | null
+          is_read?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
+      payments: {
+        Row: {
+          id: string
+          user_id: string
+          request_id: string | null
+          amount: number
+          payment_method: string
+          reference_number: string | null
+          gcash_number: string | null
+          proof_url: string | null
+          status: string
+          verified_by: string | null
+          verified_at: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          request_id?: string | null
+          amount: number
+          payment_method?: string
+          reference_number?: string | null
+          gcash_number?: string | null
+          proof_url?: string | null
+          status?: string
+          verified_by?: string | null
+          verified_at?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          request_id?: string | null
+          amount?: number
+          payment_method?: string
+          reference_number?: string | null
+          gcash_number?: string | null
+          proof_url?: string | null
+          status?: string
+          verified_by?: string | null
+          verified_at?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
         }
         Relationships: []
       }

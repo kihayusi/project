@@ -41,7 +41,7 @@ export const NotificationBell = () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
-        .from("notifications" as any)
+        .from("notifications")
         .select("*")
         .eq("user_id", session.user.id)
         .order("created_at", { ascending: false })
@@ -68,7 +68,7 @@ export const NotificationBell = () => {
     const channel = supabase
       .channel("notifications-realtime")
       .on(
-        "postgres_changes" as any,
+        "postgres_changes",
         { event: "INSERT", schema: "public", table: "notifications" },
         (payload: any) => {
           setNotifications((prev) => [payload.new as Notification, ...prev]);
@@ -84,7 +84,7 @@ export const NotificationBell = () => {
   const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   const markAsRead = async (id: string) => {
-    await supabase.from("notifications" as any).update({ is_read: true } as any).eq("id", id);
+    await supabase.from("notifications").update({ is_read: true }).eq("id", id);
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
     );
@@ -94,15 +94,15 @@ export const NotificationBell = () => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.user) return;
     await supabase
-      .from("notifications" as any)
-      .update({ is_read: true } as any)
+      .from("notifications")
+      .update({ is_read: true })
       .eq("user_id", session.user.id)
       .eq("is_read", false);
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
   };
 
   const deleteNotification = async (id: string) => {
-    await supabase.from("notifications" as any).delete().eq("id", id);
+    await supabase.from("notifications").delete().eq("id", id);
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
@@ -220,31 +220,3 @@ export const NotificationBell = () => {
   );
 };
 
-/**
- * Helper: insert a notification for a given user.
- * Call from any component after a form submission, etc.
- */
-export const createNotification = async (
-  userId: string,
-  title: string,
-  message: string,
-  type: "info" | "success" | "warning" | "status_update" = "info",
-  referenceId?: string,
-) => {
-  try {
-    const { error } = await supabase.from("notifications" as any).insert({
-      user_id: userId,
-      title,
-      message,
-      type,
-      reference_id: referenceId ?? null,
-    } as any);
-    if (error) {
-      console.error("[Notification] insert failed:", error.message, error);
-    } else {
-      console.log("[Notification] created for user", userId, title);
-    }
-  } catch (err) {
-    console.error("[Notification] unexpected error:", err);
-  }
-};

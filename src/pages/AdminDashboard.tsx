@@ -1,32 +1,37 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserRole } from "@/hooks/useUserRole";
 import { AdminSidebar } from "@/components/AdminSidebar";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { ParsedDescription } from "@/components/ParsedDescription";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import {
   Users, Megaphone, AlertTriangle, Plus, Pencil, Trash2, MessageSquare, Eye, Loader2,
-  Briefcase, Activity, FileText, Truck, CheckCircle2, Copy,
+  Briefcase, Activity, FileText, Truck, CheckCircle2, Copy, Pin, Search, Calendar as CalendarIcon,
+  MapPin, Image, Globe, GlobeLock, LayoutGrid, List, Upload, X,
 } from "lucide-react";
 import { generateOrderId } from "@/lib/utils";
-import { createNotification } from "@/components/NotificationBell";
+import { createNotification } from "@/services/notifications";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from "recharts";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const { toast } = useToast();
   const { isAdmin, loading: roleLoading, user } = useUserRole();
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -39,11 +44,19 @@ const AdminDashboard = () => {
   const [payments, setPayments] = useState<any[]>([]);
   const [stats, setStats] = useState({ users: 0, announcements: 0, concerns: 0, pendingConcerns: 0, resolvedConcerns: 0, pendingDocs: 0 });
   const [loading, setLoading] = useState(true);
+  const hasFetched = React.useRef(false);
 
   // Announcement form
   const [announcementDialog, setAnnouncementDialog] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState<any>(null);
-  const [announcementForm, setAnnouncementForm] = useState({ title: "", description: "", category: "General", location: "", event_date: "" });
+  const [announcementForm, setAnnouncementForm] = useState({ title: "", description: "", category: "General", location: "", event_date: "", image_url: "", is_pinned: false, is_published: true });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [annSearchQuery, setAnnSearchQuery] = useState("");
+  const [annCategoryFilter, setAnnCategoryFilter] = useState("All");
+  const [annViewMode, setAnnViewMode] = useState<"grid" | "table">("grid");
+  const [previewAnnouncement, setPreviewAnnouncement] = useState<any>(null);
 
   // Concern response
   const [respondDialog, setRespondDialog] = useState(false);
@@ -54,12 +67,15 @@ const AdminDashboard = () => {
   useEffect(() => {
     if (!roleLoading && !isAdmin) {
       navigate("/");
-      toast({ title: "Access denied", description: "You don't have admin privileges.", variant: "destructive" });
+      toast.error("You don't have admin privileges.");
     }
   }, [roleLoading, isAdmin, navigate, toast]);
 
   useEffect(() => {
-    if (isAdmin) fetchAll();
+    if (isAdmin && !hasFetched.current) {
+      hasFetched.current = true;
+      fetchAll();
+    }
   }, [isAdmin]);
 
   const fetchAll = async () => {
@@ -69,7 +85,7 @@ const AdminDashboard = () => {
         supabase.from("city_announcements").select("*").order("created_at", { ascending: false }),
         supabase.from("citizen_concerns").select("*").order("created_at", { ascending: false }),
         supabase.from("profiles").select("*"),
-        supabase.from("payments" as any).select("*").order("created_at", { ascending: false }),
+        supabase.from("payments").select("*").order("created_at", { ascending: false }),
       ]);
 
       if (announcementsRes.error) console.error("Announcements error:", announcementsRes.error);
@@ -123,32 +139,95 @@ const AdminDashboard = () => {
 
   const handleSaveAnnouncement = async () => {
     if (!announcementForm.title || !announcementForm.description) {
-      toast({ title: "Error", description: "Title and description are required.", variant: "destructive" });
+      toast.error("Title and description are required.");
       return;
     }
 
+    let finalImageUrl: string | null = announcementForm.image_url || null;
+
+    // Upload new image file if one was selected
+    if (imageFile) {
+      setUploadingImage(true);
+      const ext = imageFile.name.split(".").pop() || "jpg";
+      const filePath = `announcements/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("uploads")
+        .upload(filePath, imageFile, { cacheControl: "3600", upsert: false });
+      if (uploadError) {
+        toast.error(`Image upload failed: ${uploadError.message}`);
+        setUploadingImage(false);
+        return;
+      }
+      const { data: urlData } = supabase.storage.from("uploads").getPublicUrl(filePath);
+      finalImageUrl = urlData.publicUrl;
+      setUploadingImage(false);
+    }
+
+    const payload = {
+      title: announcementForm.title,
+      description: announcementForm.description,
+      category: announcementForm.category,
+      location: announcementForm.location || null,
+      event_date: announcementForm.event_date || null,
+      image_url: finalImageUrl,
+      is_pinned: announcementForm.is_pinned,
+      is_published: announcementForm.is_published,
+    };
+
     if (editingAnnouncement) {
-      const { error } = await supabase.from("city_announcements").update(announcementForm).eq("id", editingAnnouncement.id);
-      if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
-      toast({ title: "Updated", description: "Announcement updated successfully." });
+      const { error } = await supabase.from("city_announcements").update(payload).eq("id", editingAnnouncement.id);
+      if (error) { toast.error(error.message); return; }
+      toast.success("Announcement updated successfully.");
     } else {
-      const { error } = await supabase.from("city_announcements").insert({ ...announcementForm, created_by: user?.id });
-      if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
-      toast({ title: "Created", description: "Announcement created successfully." });
+      const { error } = await supabase.from("city_announcements").insert({ ...payload, created_by: user?.id });
+      if (error) { toast.error(error.message); return; }
+      toast.success("Announcement created successfully.");
     }
 
     setAnnouncementDialog(false);
     setEditingAnnouncement(null);
-    setAnnouncementForm({ title: "", description: "", category: "General", location: "", event_date: "" });
+    setAnnouncementForm({ title: "", description: "", category: "General", location: "", event_date: "", image_url: "", is_pinned: false, is_published: true });
+    setImageFile(null);
+    setImagePreview(null);
     fetchAll();
   };
 
   const handleDeleteAnnouncement = async (id: string) => {
     const { error } = await supabase.from("city_announcements").delete().eq("id", id);
-    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Deleted", description: "Announcement deleted." });
+    if (error) { toast.error(error.message); return; }
+    toast.success("Announcement deleted.");
     fetchAll();
   };
+
+  const handleTogglePublish = async (ann: any) => {
+    const { error } = await supabase.from("city_announcements").update({ is_published: !ann.is_published }).eq("id", ann.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success(ann.is_published ? "Announcement unpublished." : "Announcement published.");
+    fetchAll();
+  };
+
+  const handleTogglePin = async (ann: any) => {
+    const { error } = await supabase.from("city_announcements").update({ is_pinned: !ann.is_pinned }).eq("id", ann.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success(ann.is_pinned ? "Announcement unpinned." : "Announcement pinned.");
+    fetchAll();
+  };
+
+  const filteredAnnouncements = useMemo(() => {
+    let result = announcements;
+    if (annCategoryFilter !== "All") {
+      result = result.filter((a: any) => a.category === annCategoryFilter);
+    }
+    if (annSearchQuery.trim()) {
+      const q = annSearchQuery.toLowerCase();
+      result = result.filter((a: any) =>
+        a.title.toLowerCase().includes(q) ||
+        a.description.toLowerCase().includes(q) ||
+        (a.location && a.location.toLowerCase().includes(q))
+      );
+    }
+    return result;
+  }, [announcements, annSearchQuery, annCategoryFilter]);
 
   const handleRespondConcern = async () => {
     // Build update payload — response text is optional for status-only updates
@@ -167,7 +246,7 @@ const AdminDashboard = () => {
 
     if (error) {
       console.error("[Admin] Update failed:", error);
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error(error.message);
       return;
     }
 
@@ -195,7 +274,7 @@ const AdminDashboard = () => {
       console.warn("[Admin] No user_id on selectedConcern — cannot send notification");
     }
 
-    toast({ title: "Updated", description: `Status changed to ${friendlyStatus}.` });
+    toast.success(`Status changed to ${friendlyStatus}.`);
     setRespondDialog(false);
     setSelectedConcern(null);
     setResponseText("");
@@ -204,13 +283,17 @@ const AdminDashboard = () => {
 
   const openEditAnnouncement = (ann: any) => {
     setEditingAnnouncement(ann);
-    setAnnouncementForm({ title: ann.title, description: ann.description, category: ann.category, location: ann.location || "", event_date: ann.event_date || "" });
+    setAnnouncementForm({ title: ann.title, description: ann.description, category: ann.category, location: ann.location || "", event_date: ann.event_date || "", image_url: ann.image_url || "", is_pinned: ann.is_pinned || false, is_published: ann.is_published !== false });
+    setImageFile(null);
+    setImagePreview(ann.image_url || null);
     setAnnouncementDialog(true);
   };
 
   const openNewAnnouncement = () => {
     setEditingAnnouncement(null);
-    setAnnouncementForm({ title: "", description: "", category: "General", location: "", event_date: "" });
+    setAnnouncementForm({ title: "", description: "", category: "General", location: "", event_date: "", image_url: "", is_pinned: false, is_published: true });
+    setImageFile(null);
+    setImagePreview(null);
     setAnnouncementDialog(true);
   };
 
@@ -249,7 +332,7 @@ const AdminDashboard = () => {
     users:         { title: "Registered Users",      subtitle: "View all registered users" },
   };
 
-  if (roleLoading || loading) {
+  if (roleLoading && !hasFetched.current) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-civic-blue" />
@@ -399,95 +482,431 @@ const AdminDashboard = () => {
 
         {/* Announcements */}
         {activeTab === "announcements" && (
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>City Announcements</CardTitle>
-                <CardDescription>Create and manage announcements</CardDescription>
-              </div>
-              <Dialog open={announcementDialog} onOpenChange={setAnnouncementDialog}>
-                <DialogTrigger asChild>
-                  <Button variant="civic" onClick={openNewAnnouncement}>
-                    <Plus className="h-4 w-4 mr-1" /> New Announcement
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-lg">
-                  <DialogHeader>
-                    <DialogTitle>{editingAnnouncement ? "Edit Announcement" : "New Announcement"}</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
+          <div className="space-y-6">
+            {/* Stats row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: "Total", value: announcements.length, icon: Megaphone, color: "text-civic-blue" },
+                { label: "Published", value: announcements.filter((a: any) => a.is_published).length, icon: Globe, color: "text-green-600" },
+                { label: "Pinned", value: announcements.filter((a: any) => a.is_pinned).length, icon: Pin, color: "text-orange-500" },
+                { label: "Drafts", value: announcements.filter((a: any) => !a.is_published).length, icon: GlobeLock, color: "text-muted-foreground" },
+              ].map((s) => (
+                <Card key={s.label}>
+                  <CardContent className="flex items-center gap-3 py-4">
+                    <s.icon className={`h-8 w-8 ${s.color}`} />
                     <div>
-                      <Label>Title</Label>
-                      <Input value={announcementForm.title} onChange={(e) => setAnnouncementForm({ ...announcementForm, title: e.target.value })} />
+                      <p className="text-2xl font-bold">{s.value}</p>
+                      <p className="text-xs text-muted-foreground">{s.label}</p>
                     </div>
-                    <div>
-                      <Label>Description</Label>
-                      <Textarea value={announcementForm.description} onChange={(e) => setAnnouncementForm({ ...announcementForm, description: e.target.value })} rows={4} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label>Category</Label>
-                        <Select value={announcementForm.category} onValueChange={(v) => setAnnouncementForm({ ...announcementForm, category: v })}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {["General", "Event", "Health", "Public Hearing", "Festival", "Emergency", "Infrastructure"].map((c) => (
-                              <SelectItem key={c} value={c}>{c}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label>Location</Label>
-                        <Input value={announcementForm.location} onChange={(e) => setAnnouncementForm({ ...announcementForm, location: e.target.value })} />
-                      </div>
-                    </div>
-                    <div>
-                      <Label>Event Date</Label>
-                      <Input value={announcementForm.event_date} onChange={(e) => setAnnouncementForm({ ...announcementForm, event_date: e.target.value })} placeholder="e.g. March 15, 2024" />
-                    </div>
-                    <Button variant="civic" className="w-full" onClick={handleSaveAnnouncement}>
-                      {editingAnnouncement ? "Update" : "Create"} Announcement
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Toolbar: search, filter, view toggle, new button */}
+            <Card>
+              <CardContent className="py-4">
+                <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                  <div className="relative flex-1 w-full">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input placeholder="Search announcements..." className="pl-10" value={annSearchQuery} onChange={(e) => setAnnSearchQuery(e.target.value)} />
+                  </div>
+                  <Select value={annCategoryFilter} onValueChange={setAnnCategoryFilter}>
+                    <SelectTrigger className="w-[160px]"><SelectValue placeholder="Category" /></SelectTrigger>
+                    <SelectContent>
+                      {["All", "General", "Event", "Health", "Public Hearing", "Festival", "Emergency", "Infrastructure"].map((c) => (
+                        <SelectItem key={c} value={c}>{c}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex items-center border rounded-md">
+                    <Button variant={annViewMode === "grid" ? "default" : "ghost"} size="icon" className="h-9 w-9 rounded-r-none" onClick={() => setAnnViewMode("grid")}>
+                      <LayoutGrid className="h-4 w-4" />
+                    </Button>
+                    <Button variant={annViewMode === "table" ? "default" : "ghost"} size="icon" className="h-9 w-9 rounded-l-none" onClick={() => setAnnViewMode("table")}>
+                      <List className="h-4 w-4" />
                     </Button>
                   </div>
-                </DialogContent>
-              </Dialog>
-            </CardHeader>
-            <CardContent>
-              {announcements.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">No announcements yet. Create one to get started.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Title</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Published</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {announcements.map((ann) => (
-                      <TableRow key={ann.id}>
-                        <TableCell className="font-medium">{ann.title}</TableCell>
-                        <TableCell><Badge variant="secondary">{ann.category}</Badge></TableCell>
-                        <TableCell>{ann.event_date || "—"}</TableCell>
-                        <TableCell><Badge variant={ann.is_published ? "default" : "outline"}>{ann.is_published ? "Yes" : "No"}</Badge></TableCell>
-                        <TableCell className="text-right space-x-2">
-                          <Button variant="ghost" size="icon" onClick={() => openEditAnnouncement(ann)}>
-                            <Pencil className="h-4 w-4" />
+                  <Dialog open={announcementDialog} onOpenChange={setAnnouncementDialog}>
+                    <DialogTrigger asChild>
+                      <Button variant="civic" onClick={openNewAnnouncement}>
+                        <Plus className="h-4 w-4 mr-1" /> New
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>{editingAnnouncement ? "Edit Announcement" : "New Announcement"}</DialogTitle>
+                        <DialogDescription>
+                          {editingAnnouncement ? "Update the announcement details below." : "Fill in the details to create a new announcement."}
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 pt-2">
+                        <div>
+                          <Label>Title <span className="text-destructive">*</span></Label>
+                          <Input value={announcementForm.title} onChange={(e) => setAnnouncementForm({ ...announcementForm, title: e.target.value })} placeholder="Enter announcement title" className="mt-1" />
+                        </div>
+                        <div>
+                          <Label>Description <span className="text-destructive">*</span></Label>
+                          <Textarea value={announcementForm.description} onChange={(e) => setAnnouncementForm({ ...announcementForm, description: e.target.value })} rows={5} placeholder="Write the full announcement content..." className="mt-1" />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div>
+                            <Label>Category</Label>
+                            <Select value={announcementForm.category} onValueChange={(v) => setAnnouncementForm({ ...announcementForm, category: v })}>
+                              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {["General", "Event", "Health", "Public Hearing", "Festival", "Emergency", "Infrastructure"].map((c) => (
+                                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Event Date</Label>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button variant="outline" className={`w-full mt-1 justify-start text-left font-normal ${!announcementForm.event_date ? 'text-muted-foreground' : ''}`}>
+                                  <CalendarIcon className="mr-2 h-4 w-4" />
+                                  {announcementForm.event_date ? new Date(announcementForm.event_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : "Pick a date"}
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                  mode="single"
+                                  selected={announcementForm.event_date ? new Date(announcementForm.event_date) : undefined}
+                                  onSelect={(date) => setAnnouncementForm({ ...announcementForm, event_date: date ? date.toISOString().split('T')[0] : "" })}
+                                  initialFocus
+                                />
+                                {announcementForm.event_date && (
+                                  <div className="px-3 pb-3">
+                                    <Button variant="ghost" size="sm" className="w-full text-xs" onClick={() => setAnnouncementForm({ ...announcementForm, event_date: "" })}>
+                                      Clear date
+                                    </Button>
+                                  </div>
+                                )}
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                        </div>
+                        <div>
+                          <Label>Location</Label>
+                          <Input value={announcementForm.location} onChange={(e) => setAnnouncementForm({ ...announcementForm, location: e.target.value })} placeholder="e.g. City Hall" className="mt-1" />
+                        </div>
+                        <div>
+                          <Label>Image</Label>
+                          <div className="mt-1 space-y-3">
+                            {(imagePreview || announcementForm.image_url) ? (
+                              <div className="relative rounded-lg overflow-hidden border">
+                                <img
+                                  src={imagePreview || announcementForm.image_url}
+                                  alt="Preview"
+                                  className="w-full h-48 object-cover"
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                />
+                                <Button
+                                  type="button"
+                                  variant="destructive"
+                                  size="icon"
+                                  className="absolute top-2 right-2 h-7 w-7 rounded-full"
+                                  onClick={() => {
+                                    setImageFile(null);
+                                    setImagePreview(null);
+                                    setAnnouncementForm({ ...announcementForm, image_url: "" });
+                                  }}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <label
+                                htmlFor="announcement-image-upload"
+                                className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
+                              >
+                                <Upload className="h-8 w-8 text-muted-foreground mb-2" />
+                                <span className="text-sm font-medium text-muted-foreground">Click to upload image</span>
+                                <span className="text-xs text-muted-foreground mt-1">JPG, PNG or WebP (max 5MB)</span>
+                              </label>
+                            )}
+                            <input
+                              id="announcement-image-upload"
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                if (file.size > 5 * 1024 * 1024) {
+                                  toast.error("Image must be under 5 MB.");
+                                  return;
+                                }
+                                setImageFile(file);
+                                setImagePreview(URL.createObjectURL(file));
+                                // Reset the input so re-selecting the same file triggers onChange
+                                e.target.value = "";
+                              }}
+                            />
+                            {(imagePreview || announcementForm.image_url) && (
+                              <label
+                                htmlFor="announcement-image-upload"
+                                className="inline-flex items-center gap-2 text-sm text-primary cursor-pointer hover:underline"
+                              >
+                                <Upload className="h-3.5 w-3.5" /> Replace image
+                              </label>
+                            )}
+                          </div>
+                        </div>
+                        <Separator />
+                        <div className="flex flex-col sm:flex-row gap-6">
+                          <div className="flex items-center gap-3">
+                            <Switch id="form_published" checked={announcementForm.is_published} onCheckedChange={(v) => setAnnouncementForm({ ...announcementForm, is_published: v })} />
+                            <Label htmlFor="form_published" className="cursor-pointer">
+                              <span className="font-medium">Published</span>
+                              <p className="text-xs text-muted-foreground">Visible to all citizens</p>
+                            </Label>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Switch id="form_pinned" checked={announcementForm.is_pinned} onCheckedChange={(v) => setAnnouncementForm({ ...announcementForm, is_pinned: v })} />
+                            <Label htmlFor="form_pinned" className="cursor-pointer">
+                              <span className="font-medium">Pinned</span>
+                              <p className="text-xs text-muted-foreground">Displayed at the top</p>
+                            </Label>
+                          </div>
+                        </div>
+                        <Button variant="civic" className="w-full" onClick={handleSaveAnnouncement} disabled={uploadingImage}>
+                          {uploadingImage ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Uploading image…</>) : (<>{editingAnnouncement ? "Update" : "Create"} Announcement</>)}
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Content */}
+            {filteredAnnouncements.length === 0 ? (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <Megaphone className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <p className="text-muted-foreground">
+                    {announcements.length === 0 ? "No announcements yet. Create one to get started." : "No announcements match your search."}
+                  </p>
+                </CardContent>
+              </Card>
+            ) : annViewMode === "grid" ? (
+              /* Grid View */
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {filteredAnnouncements.map((ann: any) => (
+                  <Card key={ann.id} className={`flex flex-col overflow-hidden transition-all hover:shadow-lg ${!ann.is_published ? "opacity-70 border-dashed" : ""}`}>
+                    {/* Image */}
+                    {ann.image_url && (
+                      <div className="relative h-40 overflow-hidden bg-muted">
+                        <img src={ann.image_url} alt={ann.title} className="w-full h-full object-cover" />
+                        <div className="absolute top-2 left-2 flex gap-1">
+                          {ann.is_pinned && <Badge variant="destructive" className="text-xs flex items-center gap-1"><Pin className="h-3 w-3" /> Pinned</Badge>}
+                          {!ann.is_published && <Badge variant="outline" className="text-xs bg-background">Draft</Badge>}
+                        </div>
+                      </div>
+                    )}
+                    {!ann.image_url && (ann.is_pinned || !ann.is_published) && (
+                      <div className="px-4 pt-4 flex gap-1">
+                        {ann.is_pinned && <Badge variant="destructive" className="text-xs flex items-center gap-1"><Pin className="h-3 w-3" /> Pinned</Badge>}
+                        {!ann.is_published && <Badge variant="outline" className="text-xs">Draft</Badge>}
+                      </div>
+                    )}
+
+                    <CardHeader className="pb-2 flex-none">
+                      <div className="flex items-center justify-between mb-1">
+                        <Badge variant="secondary" className="text-xs">{ann.category}</Badge>
+                        <span className="text-xs text-muted-foreground">{new Date(ann.created_at).toLocaleDateString()}</span>
+                      </div>
+                      <CardTitle className="text-base line-clamp-2">{ann.title}</CardTitle>
+                    </CardHeader>
+
+                    <CardContent className="flex-1 pb-2">
+                      {ann.event_date && (
+                        <div className="flex items-center text-xs text-muted-foreground mb-1">
+                          <CalendarIcon className="h-3 w-3 mr-1" /> {new Date(ann.event_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                        </div>
+                      )}
+                      {ann.location && (
+                        <div className="flex items-center text-xs text-muted-foreground mb-2">
+                          <MapPin className="h-3 w-3 mr-1" /> {ann.location}
+                        </div>
+                      )}
+                      <p className="text-sm text-muted-foreground line-clamp-3">{ann.description}</p>
+                    </CardContent>
+
+                    <CardFooter className="border-t pt-3 gap-1 flex-wrap">
+                      <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setPreviewAnnouncement(ann)}>
+                        <Eye className="h-3 w-3 mr-1" /> View
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => openEditAnnouncement(ann)}>
+                        <Pencil className="h-3 w-3 mr-1" /> Edit
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => handleTogglePublish(ann)}>
+                        {ann.is_published ? <GlobeLock className="h-3 w-3 mr-1" /> : <Globe className="h-3 w-3 mr-1" />}
+                        {ann.is_published ? "Unpublish" : "Publish"}
+                      </Button>
+                      <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => handleTogglePin(ann)}>
+                        <Pin className="h-3 w-3 mr-1" /> {ann.is_pinned ? "Unpin" : "Pin"}
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 text-xs text-destructive hover:text-destructive">
+                            <Trash2 className="h-3 w-3 mr-1" /> Delete
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteAnnouncement(ann.id)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete announcement?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              "{ann.title}" will be permanently deleted. This cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => handleDeleteAnnouncement(ann.id)}>
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              /* Table View */
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[50px]"></TableHead>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead className="text-center">Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredAnnouncements.map((ann: any) => (
+                        <TableRow key={ann.id} className={!ann.is_published ? "opacity-60" : ""}>
+                          <TableCell>
+                            {ann.image_url ? (
+                              <img src={ann.image_url} alt="" className="h-10 w-10 rounded object-cover" />
+                            ) : (
+                              <div className="h-10 w-10 rounded bg-muted flex items-center justify-center">
+                                <Image className="h-4 w-4 text-muted-foreground" />
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <p className="font-medium line-clamp-1">{ann.title}</p>
+                            <p className="text-xs text-muted-foreground line-clamp-1">{ann.description.slice(0, 80)}...</p>
+                          </TableCell>
+                          <TableCell><Badge variant="secondary">{ann.category}</Badge></TableCell>
+                          <TableCell className="text-sm">{ann.event_date || new Date(ann.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-1">
+                              {ann.is_pinned && <Badge variant="destructive" className="text-xs">Pinned</Badge>}
+                              <Badge variant={ann.is_published ? "default" : "outline"} className="text-xs">{ann.is_published ? "Live" : "Draft"}</Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setPreviewAnnouncement(ann)}>
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditAnnouncement(ann)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleTogglePublish(ann)}>
+                                {ann.is_published ? <GlobeLock className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
+                              </Button>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete announcement?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      "{ann.title}" will be permanently deleted. This cannot be undone.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => handleDeleteAnnouncement(ann.id)}>
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Preview / View Modal */}
+            <Dialog open={!!previewAnnouncement} onOpenChange={(open) => !open && setPreviewAnnouncement(null)}>
+              <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                {previewAnnouncement && (
+                  <>
+                    <DialogHeader>
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <Badge variant="secondary">{previewAnnouncement.category}</Badge>
+                        {previewAnnouncement.is_pinned && <Badge variant="destructive" className="flex items-center gap-1"><Pin className="h-3 w-3" /> Pinned</Badge>}
+                        <Badge variant={previewAnnouncement.is_published ? "default" : "outline"}>
+                          {previewAnnouncement.is_published ? "Published" : "Draft"}
+                        </Badge>
+                      </div>
+                      <DialogTitle className="text-xl">{previewAnnouncement.title}</DialogTitle>
+                    </DialogHeader>
+
+                    {previewAnnouncement.image_url && (
+                      <div className="rounded-lg overflow-hidden bg-muted flex items-center justify-center">
+                        <img src={previewAnnouncement.image_url} alt={previewAnnouncement.title} className="w-full max-h-[28rem] object-contain" />
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+                      <span>Created: {new Date(previewAnnouncement.created_at).toLocaleString()}</span>
+                      {previewAnnouncement.event_date && (
+                        <div className="flex items-center gap-1"><CalendarIcon className="h-4 w-4" /> {new Date(previewAnnouncement.event_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</div>
+                      )}
+                      {previewAnnouncement.location && (
+                        <div className="flex items-center gap-1"><MapPin className="h-4 w-4" /> {previewAnnouncement.location}</div>
+                      )}
+                    </div>
+
+                    <Separator />
+
+                    <div className="text-foreground whitespace-pre-line leading-relaxed">
+                      {previewAnnouncement.description}
+                    </div>
+
+                    <DialogFooter className="gap-2 sm:gap-0">
+                      <Button variant="outline" onClick={() => { setPreviewAnnouncement(null); openEditAnnouncement(previewAnnouncement); }}>
+                        <Pencil className="h-4 w-4 mr-1" /> Edit
+                      </Button>
+                      <Button variant="civic" onClick={() => { handleTogglePublish(previewAnnouncement); setPreviewAnnouncement(null); }}>
+                        {previewAnnouncement.is_published ? <><GlobeLock className="h-4 w-4 mr-1" /> Unpublish</> : <><Globe className="h-4 w-4 mr-1" /> Publish</>}
+                      </Button>
+                    </DialogFooter>
+                  </>
+                )}
+              </DialogContent>
+            </Dialog>
+          </div>
         )}
 
         {/* Concerns */}

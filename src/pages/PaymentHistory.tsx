@@ -38,7 +38,7 @@ const PaymentHistory = () => {
       }
 
       const { data, error } = await supabase
-        .from("payments" as any)
+        .from("payments")
         .select("*")
         .eq("user_id", session.user.id)
         .order("created_at", { ascending: false });

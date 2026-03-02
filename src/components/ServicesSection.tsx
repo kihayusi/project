@@ -1,9 +1,8 @@
 import { ServiceCard } from "@/components/ServiceCard";
-import { FileText, Megaphone, Shield, MessageSquare, Users, Building, Phone, Heart } from "lucide-react";
+import { FileText, Megaphone, MessageSquare, Users, Building, Phone, Heart } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DocumentRequestsService } from "@/components/services/DocumentRequestsService";
 import { CityAnnouncementsService } from "@/components/services/CityAnnouncementsService";
-import { EmergencyServicesService } from "@/components/services/EmergencyServicesService";
 import { CitizenConcernsService } from "@/components/services/CitizenConcernsService";
 import { CommunityEventsService } from "@/components/services/CommunityEventsService";
 import { BusinessServicesService } from "@/components/services/BusinessServicesService";
@@ -23,13 +22,6 @@ export const ServicesSection = () => {
       description: "Stay updated with the latest news, events, and public notices",
       icon: Megaphone,
       component: CityAnnouncementsService,
-    },
-    {
-      title: "Emergency Services",
-      description: "Quick access to police, fire department, and medical emergency contacts",
-      icon: Shield,
-      variant: "emergency" as const,
-      component: EmergencyServicesService,
     },
     {
       title: "Citizen Concerns",

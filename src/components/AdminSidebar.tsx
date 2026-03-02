@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import {
   Shield, BarChart3, Megaphone, MessageSquare, Users, LogOut, FileText,
   Briefcase, Activity,
@@ -47,11 +47,10 @@ const navGroups = [
 
 export const AdminSidebar = ({ activeTab, onTabChange, user }: AdminSidebarProps) => {
   const navigate = useNavigate();
-  const { toast } = useToast();
 
   const handleSignOut = async () => {
     await supabase.auth.signOut({ scope: "global" });
-    toast({ title: "Signed out", description: "You have been successfully signed out." });
+    toast.success("You have been successfully signed out.");
     navigate("/");
   };
 
